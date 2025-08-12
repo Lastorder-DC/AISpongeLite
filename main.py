@@ -40,7 +40,7 @@ activity_generating = Game("Generating...")
 
 # Initialize Discord client
 client = Client(intents=Intents.default(), activity=Game("Initializing..."), status=Status.idle)
-command_tree = app_commands.CommandTree(client)
+command_tree = client.tree
 
 # Embed settings and static embeds
 embed_color = Color.dark_embed()
