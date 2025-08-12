@@ -11,7 +11,8 @@ from math import ceil
 from os import getenv, listdir
 from random import randint, randrange, choice, choices
 from typing import Literal
-from discord import Status, Embed, Interaction, Color, Game, utils, Intents, Client, File, app_commands
+from discord import Status, Embed, Interaction, Color, Game, utils, Intents, File, app_commands
+from discord.ext import commands
 from dotenv import load_dotenv
 from fakeyou import FakeYou
 from openai import AsyncOpenAI
@@ -38,9 +39,9 @@ char_limit_max = 256
 activity_ready = Game("Ready!")
 activity_generating = Game("Generating...")
 
-# Initialize Discord client
-client = Client(intents=Intents.default(), activity=Game("Initializing..."), status=Status.idle)
-command_tree = app_commands.CommandTree(client)
+# Initialize Discord bot
+bot = commands.Bot(command_prefix="/", intents=Intents.default(), activity=Game("Initializing..."), status=Status.idle)
+command_tree = bot.tree
 
 # Embed settings and static embeds
 embed_color = Color.dark_embed()
@@ -243,7 +244,7 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
 
         # Show generating message
         await interaction.response.send_message(embed=embed_episode_start)
-        await client.change_presence(activity=activity_generating, status=Status.dnd)
+        await bot.change_presence(activity=activity_generating, status=Status.dnd)
 
         # Generate the script
         completion = await openai.completions.create(
@@ -481,7 +482,7 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
     # Unblock generation
     finally:
         generating = False
-        await client.change_presence(activity=activity_ready, status=Status.online)
+        await bot.change_presence(activity=activity_ready, status=Status.online)
 
 
 @command_tree.command(description="Chat with a character.")
@@ -513,7 +514,7 @@ async def chat(interaction: Interaction, character: characters_literal, message:
 
         # Show generating message
         await interaction.response.send_message(embed=embed_chat)
-        await client.change_presence(activity=activity_generating, status=Status.dnd)
+        await bot.change_presence(activity=activity_generating, status=Status.dnd)
 
         # Generate the chat response using OpenAI
         character_title = character.title().replace("bob", "Bob")
@@ -539,7 +540,7 @@ async def chat(interaction: Interaction, character: characters_literal, message:
     # Unblock generation
     finally:
         generating = False
-        await client.change_presence(activity=activity_ready, status=Status.online)
+        await bot.change_presence(activity=activity_ready, status=Status.online)
 
 
 @command_tree.command(description="Make a character speak text.")
@@ -571,7 +572,7 @@ async def tts(interaction: Interaction, character: characters_literal, text: app
 
         # Show generating message
         await interaction.response.send_message(embed=embed_tts)
-        await client.change_presence(activity=activity_generating, status=Status.dnd)
+        await bot.change_presence(activity=activity_generating, status=Status.dnd)
 
         # Loop to run FakeYou requests in
         loop = get_running_loop()
@@ -615,10 +616,10 @@ async def tts(interaction: Interaction, character: characters_literal, text: app
     # Unblock generation
     finally:
         generating = False
-        await client.change_presence(activity=activity_ready, status=Status.online)
+        await bot.change_presence(activity=activity_ready, status=Status.online)
 
 
-@client.event
+@bot.event
 async def on_ready():
     """
     Final initializations once the bot has logged in to the Discord API. If this fails, the program will stop.
@@ -628,31 +629,31 @@ async def on_ready():
     try:
 
         # Set bot avatar if it is missing
-        if client.user.avatar is None:
+        if bot.user.avatar is None:
             with open("img/Logo.gif", "rb") as file:
-                await client.user.edit(avatar=file.read())
+                await bot.user.edit(avatar=file.read())
 
         # Set bot banner if it is missing
-        if client.user.banner is None:
+        if bot.user.banner is None:
             with open("img/Banner.png", "rb") as file:
-                await client.user.edit(banner=file.read())
+                await bot.user.edit(banner=file.read())
 
         # Fetch all application emojis
         global emojis
-        emojis = {e.name: e for e in await client.fetch_application_emojis()}
+        emojis = {e.name: e for e in await bot.fetch_application_emojis()}
 
         # Create missing application emojis
         for emoji_file in listdir("emoji"):
             emoji_name = emoji_file.split(".")[0]
             if emoji_name not in emojis.keys():
                 with open(f"emoji/{emoji_file}", "rb") as file:
-                    emojis[emoji_name] = await client.create_application_emoji(name=emoji_name, image=file.read())
+                    emojis[emoji_name] = await bot.create_application_emoji(name=emoji_name, image=file.read())
 
         # Sync command tree
         await command_tree.sync()
 
         # Set status to ready
-        await client.change_presence(activity=activity_ready, status=Status.online)
+        await bot.change_presence(activity=activity_ready, status=Status.online)
 
     # Stop bot if any of the above fails
     except Exception as e:
@@ -661,4 +662,4 @@ async def on_ready():
 
 
 # Start bot (must be at the end of the file)
-client.run(getenv("DISCORD_BOT_TOKEN"))
+bot.run(getenv("DISCORD_BOT_TOKEN"))
