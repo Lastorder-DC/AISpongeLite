@@ -31,6 +31,9 @@ if getenv("FAKEYOU_EMAIL") and getenv("FAKEYOU_PASSWORD"):
     login = fakeyou.login(getenv("FAKEYOU_EMAIL"), getenv("FAKEYOU_PASSWORD"))
 
     print("Logged in to FakeYou as:", login.username)
+else:
+    # Skip login if no credentials are provided
+    print("Skipping FakeYou login, using public API.")
 
 # Set the FakeYou timeout before a line fails
 fakeyou_timeout = 90
