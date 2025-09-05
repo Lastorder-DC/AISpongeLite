@@ -14,16 +14,7 @@ RUN pip install --no-cache-dir --upgrade pip wheel && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-
-RUN python - <<'PY'
-import sysconfig, os, shutil
-site = sysconfig.get_paths()["purelib"]  # site-packages 경로
-dst_dir = os.path.join(site, "fakeyou")
-os.makedirs(dst_dir, exist_ok=True)
-shutil.copyfile("objects.py", os.path.join(dst_dir, "objects.py"))
-shutil.copyfile("fakeyou_patched.py", os.path.join(dst_dir, "fakeyou.py"))
-print("Patched fakeyou in:", dst_dir)
-PY
+COPY objects.py /usr/local/lib/python3.12/site-packages/fakeyou/
 
 RUN useradd -m app && chown -R app:app /usr/src/app
 USER app
