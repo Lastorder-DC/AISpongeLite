@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir --upgrade pip wheel && \
 
 COPY . .
 COPY objects.py /usr/local/lib/python3.12/site-packages/fakeyou/
+COPY fakeyou_patched.py /usr/local/lib/python3.12/site-packages/fakeyou/fakeyou.py
 
 RUN useradd -m app && chown -R app:app /usr/src/app
 USER app
