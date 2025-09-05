@@ -1,115 +1,218 @@
+import requests
+import json
+import time
+import logging
 import re
-
-from .util import *
-
-
-# Hey devs, I know you're looking through the code
-# its messy, I'll comment it later.
+from uuid import uuid4
+from .objects import *
+from .exception import *
 
 
-class FakeYou(Service):
-    def __init__(self, proxies: dict = None):
-        Service.__init__(self, proxies)
+"""
+Hey devs, i know you're looking through the code
+its messy, i'll comment it later.
+"""
+
+
+class FakeYou:
+
+    def __init__(self, verbose: bool = False):
+        self.baseurl = "https://api.fakeyou.com/"
+        # the base api url, every method will be called using this url, <url+method name>
+
+        self.headers = {
+            "accept": "application/json",
+            "content-Type": "application/json"
+        }
+        # general headers needed for almost every request
+
+        self.session = requests.Session()
+        # our session
+
+        self.session.headers = self.headers
+        # including our headers in
+
+        logging.debug("Session created")
 
     def login(self, username, password):
-        data = {
-            "username_or_email": username,
-            "password": password
-        }
-        self.post("/login", data)
-        return Login(self.get("/session").json())
+        ljson = {"username_or_email": username, "password": password}
+        # login payload
 
-    def get_voices(self, size: int = 0) -> ListVoice:
-        return ListVoice(self.get("/tts/list").json(), size=size)
+        logging.debug("Sending Login request")
+        loginHandler = self.session.post(self.baseurl + "login", json=ljson)
+        logging.debug("Login request sent")
 
-    def get_voice_categories(self, size: int = 25) -> Categories:
-        return Categories(self.get("/category/list/tts").json(), size=size)
+        lrjson = loginHandler.json()
+        if loginHandler.status_code == 200:
+            # success
+            logging.debug("Processing the response (login)")
+            if lrjson["success"] is True:
+                logging.debug("Login has been done successfully")
+                sjson = self.session.get(self.baseurl + "session").json()
+                return login(sjson=sjson)
 
-    def get_voices_by_category(self, category_token: str):
-        voices = self.get_voices(size=0)
-        found = {
-            "models": [
-                vjson for tokens, vjson in zip(voices.categoryTokens, voices.json) if category_token in tokens
-            ]
-        }
-        return ListVoice(json=found, size=0)
+        elif loginHandler.status_code == 401:
+            logging.critical("FALSE email/password, raising error.")
+            raise InvalidCredentials()
 
-    def make_tts_job(self, text: str, tts_model_token: str):
-        data = {
+        elif loginHandler.status_code == 429:
+            logging.critical("IP IS BANNED (caused by login request)")
+            raise TooManyRequests()
+
+    def list_voices(self, size: int = 0):
+        logging.debug("fetching voice models")
+        handler = self.session.get(self.baseurl + "tts/list")
+        logging.debug("Voice models fetched")
+
+        if handler.status_code == 429:
+            logging.critical("Your ip is banned, raising error")
+            raise TooManyRequests()
+
+        if handler.status_code == 200:
+            hjson = handler.json()
+            logging.debug("processing data.")
+            return list_voice(hjson, size=size)
+
+    def list_voice_categories(self, size: int = 25):
+        logging.debug("Fetching categories")
+        handler = self.session.get(self.baseurl + "category/list/tts")
+        logging.debug("Categories fetched!")
+
+        if handler.status_code == 429:
+            logging.error("Your ip is banned")
+            raise TooManyRequests()
+
+        if handler.status_code == 200:
+            hjson = handler.json()
+            return categories(hjson, size=size)
+
+    def get_voices_by_category(self, categoryToken: str):
+        voices = self.list_voices(size=0)
+        found = {"models": []}
+
+        for tokens, vjson in zip(voices.categoryTokens, voices.json):
+            for token in tokens:
+                if token == categoryToken:
+                    found["models"].append(vjson)
+
+        return list_voice(json=found, size=0)
+
+    def make_tts_job(self, text: str, ttsModelToken: str):
+        payload = {
             "uuid_idempotency_token": str(uuid4()),
-            "tts_model_token": tts_model_token,
+            "tts_model_token": ttsModelToken,
             "inference_text": text
         }
-        return self.post("/tts/inference", data).json()["inference_job_token"]
+        handler = self.session.post(
+            url=self.baseurl + "tts/inference",
+            data=json.dumps(payload)
+        )
+
+        if handler.status_code == 200:
+            return handler.json()["inference_job_token"]
+        elif handler.status_code == 400:
+            raise RequestError("check token and text, or contact the developer IG:@thedemonicat")
+        elif handler.status_code == 429:
+            raise TooManyRequests()
 
     def tts_poll(self, ijt: str):
         while True:
-            ijt_data = self.get(f"/tts/job/{ijt}").json()
-            wav = Wav(ijt_data)
-            status_cases = {
-                "started": None,
-                "pending": None,
-                "attempt_failed": Failed(),
-                "cancelled_by_system": Failed(),
-                "dead": Dead(),
-                "complete_success": self.get_wav_content(wav, ijt_data)
-            }
-            status = status_cases.get(wav.status)
+            handler = self.session.get(url=self.baseurl + f"tts/job/{ijt}")
+            if handler.status_code == 200:
+                hjson = handler.json()
+                wavo = wav(hjson)
 
-            if not status:
-                continue
+                if wavo.status in ["started", "pending"]:
+                    continue
+                elif wavo.status == "attempt_failed":
+                    raise Failed()
+                elif wavo.status == "cancelled_by_system":
+                    raise Failed()
+                elif wavo.status == "dead":
+                    raise Dead()
+                elif wavo.status == "complete_success":
+                    if wavo.link is not None:
+                        content = self.session.get(wavo.link).content
+                        del wavo
+                        return wav(hjson, content)
+                    else:
+                        raise PathNullError()
 
-    def get_wav_content(self, wav, ijt_data):
-        if wav.link:
-            content = self.get(wav.link).content
-            del wav
-            return Wav(ijt_data, content)
-        else:
-            raise PathNullError()
+            elif handler.status_code == 429:
+                raise TooManyRequests()
 
-    def say(self, text: str, tts_model_token: str):
-        return self.tts_poll(self.make_tts_job(text=text, tts_model_token=tts_model_token))
+    def say(self, text: str, ttsModelToken: str):
+        return self.tts_poll(self.make_tts_job(text=text, ttsModelToken=ttsModelToken))
 
     def tts_status(self, ijt: str):
-        return self.get(f"/tts/job/{ijt}").json()["state"]["status"]
+        handler = self.session.get(url=self.baseurl + f"tts/job/{ijt}")
+        if handler.status_code == 200:
+            return handler.json()["state"]["status"]
+        else:
+            raise RequestError("Something went wrong, content:", handler.content)
 
     def get_tts_leaderboard(self):
-        return TTSLeaderboard(self.get("/leaderboard").json())
+        handler = self.session.get(self.baseurl + "leaderboard")
+        if handler.status_code == 200:
+            return ttsleaderboard(handler.json())
+        if handler.status_code == 429:
+            raise TooManyRequests()
 
     def get_w2l_leaderboard(self):
-        return W2lLeaderboard(self.get("/leaderboard").json())
+        handler = self.session.get(self.baseurl + "leaderboard")
+        if handler.status_code == 200:
+            return w2lleaderboard(handler.json())
+        if handler.status_code == 429:
+            raise TooManyRequests()
 
     def get_last_events(self):
-        return Events(self.get("/events").json())
+        handler = self.session.get(self.baseurl + "events")
+        if handler.status_code == 200:
+            return events(handler.json())
+        if handler.status_code == 429:
+            raise TooManyRequests()
 
     def get_user(self, username: str, limit: int = 25):
-        profile_handler = self.get(f"/user/{username}/profile")
-        limit = {"limit": limit}
-        tts_results = self.get(f"/user/{username}/tts_results", params=limit)
-        w2l_results = self.get(f"/user/{username}/w2l_results", params=limit)
-        tts_models = self.get(f"/user/{username}/tts_models", params=limit)
-        w2l_models = self.get(f"/user/{username}/w2l_templates", params=limit)
+        try:
+            profile_handler = self.session.get(self.baseurl + f"user/{username}/profile")
+            if profile_handler.status_code == 404:
+                raise UserNotFound(username)
 
-        return Profile(
-            profile_json=profile_handler.json(),
-            w2l_temps_json=w2l_models.json(),
-            tts_result_json=tts_results.json(),
-            tts_models_json=tts_models.json(),
-            w2l_result_json=w2l_results.json()
-        )
+            tts_results = self.session.get(self.baseurl + f"user/{username}/tts_results?limit={limit}")
+            w2l_results = self.session.get(self.baseurl + f"user/{username}/w2l_results?limit={limit}")
+            tts_models = self.session.get(self.baseurl + f"user/{username}/tts_models?limit={limit}")
+            w2l_models = self.session.get(self.baseurl + f"user/{username}/w2l_templates?limit={limit}")
 
-    def get_queue_length(self):
-        return self.get("/tts/queue_length").json()["pending_job_count"]
+            if profile_handler.status_code == 429 or w2l_models.status_code == 429:
+                raise TooManyRequests()
 
-    def create_account(self, username: str, email: str, password: str):
+            return profileo(
+                profile_json=profile_handler.json(),
+                w2l_temps_json=w2l_models.json(),
+                tts_result_json=tts_results.json(),
+                tts_models_json=tts_models.json(),
+                w2l_result_json=w2l_results.json()
+            )
+        except:
+            raise RequestError("Something went wrong, Try again")
+
+    def get_queue(self):
+        try:
+            return self.session.get(
+                "https://api.fakeyou.com/tts/queue_length"
+            ).json()["pending_job_count"]
+        except:
+            raise RequestError("Something went wrong, please try again or check your internet connection")
+
+    def create_account(self, username: str, password: str, email: str):
         if len(username) < 3:
             raise UsernameTooShort()
 
-        if not re.match(r"^\w+@([\w-]+\.)+\w+$", email):
-            raise EmailInvalid()
-
         if len(password) < 8:
             raise PasswordTooShort()
+
+        if re.match(r"^[\w]+@([\w-]+\.)+[\w]+", email) is None:
+            raise EmailInvalid()
 
         data = {
             "username": username,
@@ -117,39 +220,102 @@ class FakeYou(Service):
             "password": password,
             "password_confirmation": password
         }
-        return self.post("/create_account", data)
+        handler = self.session.post(
+            url="https://api.fakeyou.com/create_account", json=data
+        )
 
-    def get_w2l_inference(self, file: open, template_token):
-        file_name = file.name.split("/").pop() if "/" in file.name else file.name
+        if handler.status_code == 400:
+            error = handler.json()["error_type"]
+            if error in ["UsernameTaken", "UsernameReserved"]:
+                raise UsernameTaken()
+            elif error == "EmailTaken":
+                raise EmailTaken()
+        elif handler.status_code == 200:
+            return "OK"
+
+    def make_w2l_job(self, file: open, template_token):
+        file_name = file.name
+        name = file_name.split("/").pop() if "/" in file_name else file_name
 
         form = {
             "template_token": template_token,
             "uuid_idempotency_token": str(uuid4()),
-            "audio": (file_name, file.read(), "audio/mpeg")
+            "audio": (name, file.read(), "audio/mpeg")
         }
+        handler = self.session.post(
+            url="https://api.fakeyou.com/w2l/inference", files=form
+        )
+        print("Done, sent")
 
-        return self.post("/w2l/inference", files=form).json()["inference_job_token"]
+        try:
+            w2lJson = handler.json()
+            print(w2lJson)
+        except:
+            raise RequestError("Please try again later")
+
+        if handler.status_code == 400:
+            if w2lJson["error_reason"] == "Template does not exist":
+                raise W2lTemplateTokenWrong()
+        elif handler.status_code == 429:
+            raise TooManyRequests()
+        elif handler.status_code == 200:
+            return w2lJson["inference_job_token"]
 
     def w2l_poll(self, ijt: str):
         while True:
-            pjs = self.get(f"/w2l/job/{ijt}").json()
-            state = pjs["state"]["status"]
-
-            if state == "complete_success":
-                bucket_path = str(pjs["state"]["maybe_public_bucket_video_path"])
-                content = self.get(f"https://storage.googleapis.com/vocodes-public{bucket_path}").content
-                return W2Lo(pjs, content)
+            polling_handler = self.session.get(f"https://api.fakeyou.com/w2l/job/{ijt}")
+            if polling_handler.status_code == 200:
+                try:
+                    pjs = polling_handler.json()
+                except:
+                    raise RequestError(
+                        "Something went wrong.",
+                        "REQUEST CONTENT:",
+                        polling_handler.content
+                    )
+                state = pjs["state"]["status"]
+                if state == "complete_success":
+                    content = self.session.get(
+                        "https://storage.googleapis.com/vocodes-public"
+                        + str(pjs["state"]["maybe_public_bucket_video_path"])
+                    ).content
+                    return w2lo(pjs, content)
+                if state in ["Started", "pending"]:
+                    continue
+                if state in ["dead", "attempt_failed"]:
+                    raise Failed()
 
     def w2l(self, file: open, template_token: str):
-        return self.w2l_poll(self.get_w2l_inference(file, template_token))
+        ijt = self.make_w2l_job(file, template_token)
+        return self.w2l_poll(ijt)
 
     def delete_tts_result(self, result_token):
         data = {"set_delete": True, "as_mod": True}
-        return self.post(f"/tts/result/{result_token}/delete", data)
+        handler = self.session.post(
+            f"https://api.fakeyou.com/tts/result/{result_token}/delete", json=data
+        )
+        stats = handler.status_code
+
+        if stats == 200:
+            return "DONE"
+        elif stats == 401:
+            raise UnAuthorized(f"You're not authorized to delete tts result {result_token}")
+        elif stats == 404:
+            raise TtsResultNotFound(result_token)
 
     def delete_w2l_result(self, result_token):
         data = {"set_delete": True, "as_mod": False}
-        return self.post(f"/w2l/result/{result_token}/delete", data)
+        handler = self.session.post(
+            f"https://api.fakeyou.com/w2l/result/{result_token}/delete", json=data
+        )
+        stats = handler.status_code
+
+        if stats == 200:
+            return "DONE"
+        elif stats == 401:
+            raise UnAuthorized(f"You're not authorized to delete tts result {result_token}")
+        elif stats == 404:
+            raise TtsResultNotFound(result_token)
 
     def logout(self):
-        self.clear_cookies()
+        self.session.cookies.clear()
