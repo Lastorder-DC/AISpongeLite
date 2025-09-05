@@ -55,23 +55,23 @@ async def speak(character: str, text: str):
     """
 
     result = None
-
+    errCount = 0
     # Attempt to speak line
-    try:
-        _log.debug("Generating line with Fakeyou: (%s) %s", character, text)
-        with BytesIO((await wait_for(get_running_loop().run_in_executor(None, fakeyou.say, text, characters[character]), fakeyou_timeout)).content) as wav:
-            result = AudioSegment.from_wav(wav)
 
-    # Line failed to generate
-    except Exception as e:
+    while True:
         try:
-            await sleep(15)
-            _log.debug("Retry generating line with Fakeyou: (%s) %s", character, text)
+            _log.debug("Generating line with Fakeyou: (%s) %s", character, text)
             with BytesIO((await wait_for(get_running_loop().run_in_executor(None, fakeyou.say, text, characters[character]), fakeyou_timeout)).content) as wav:
                 result = AudioSegment.from_wav(wav)
-        except Exception as e:
-            _log.exception("Fakeyou TTS generation failed")
-            raise e
 
-    await sleep(10)
+        # Line failed to generate
+        except Exception as e:
+            errCount = errCount + 1
+            _log.exception("Fakeyou TTS generation failed %d times", errCount)
+            await sleep(2 * errCount)
+            if errCount > 10:
+                _log.exception("Giving up Fakeyou TTS generation")
+                raise e
+
+    await sleep(2)
     return result
