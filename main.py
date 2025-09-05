@@ -16,9 +16,12 @@ from openai import AsyncOpenAI
 from pydub import AudioSegment
 from re import sub
 from tts import speak
+import logging
 
 # Load .env
 load_dotenv()
+
+_log = logging.getLogger(__name__)
 
 # Log in to OpenAI
 openai = AsyncOpenAI(api_key=getenv("OPENAI_API_KEY"))
@@ -32,6 +35,7 @@ activity_ready = Game("Ready!")
 activity_generating = Game("Generating...")
 
 # Initialize Discord client
+_log.info("Initializing bot...")
 client = Client(intents=Intents.default(), activity=Game("Initializing..."), status=Status.idle)
 command_tree = app_commands.CommandTree(client)
 
@@ -625,6 +629,7 @@ async def on_ready():
 
         # Set status to ready
         await client.change_presence(activity=activity_ready, status=Status.online)
+        _log.info("Bot is ready!")
 
     # Stop bot if any of the above fails
     except:
