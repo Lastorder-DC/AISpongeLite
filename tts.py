@@ -7,14 +7,22 @@ Written by Jeremy Noesen
 from asyncio import sleep, wait_for, get_running_loop
 from io import BytesIO
 from os import getenv
+from dotenv import load_dotenv
 from fakeyou import FakeYou
 from pydub import AudioSegment
+import logging
+
+# Load .env
+load_dotenv()
+
+_log = logging.getLogger(__name__)
 
 # Log in to FakeYou
 fakeyou = FakeYou()
 if getenv("FAKEYOU_EMAIL") and getenv("FAKEYOU_PASSWORD"):
     # Log in using email and password
     login = fakeyou.login(getenv("FAKEYOU_EMAIL"), getenv("FAKEYOU_PASSWORD"))
+    _log.info("Logged in to FakeYou as: %s", login.username)
 
 # Set the FakeYou timeout before a line fails
 fakeyou_timeout = 90
@@ -48,13 +56,18 @@ async def speak(character: str, text: str):
 
     # Attempt to speak line
     try:
+        _log.debug("Generating line with Fakeyou: (%s) %s", character, text)
         with BytesIO((await wait_for(get_running_loop().run_in_executor(None, fakeyou.say, text, characters[character]), fakeyou_timeout)).content) as wav:
             return AudioSegment.from_wav(wav)
 
     # Line failed to generate
     except Exception as e:
+        _log.exception("Fakeyou TTS generation failed")
         raise e
 
     # Avoid rate limiting
     finally:
-        await sleep(10)
+        if getenv("FAKEYOU_EMAIL") and getenv("FAKEYOU_PASSWORD"):
+            await sleep(1)
+        else:
+            await sleep(10)
