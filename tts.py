@@ -25,7 +25,7 @@ if getenv("FAKEYOU_EMAIL") and getenv("FAKEYOU_PASSWORD"):
     _log.info("Logged in to FakeYou as: %s", login.username)
 
 # Set the FakeYou timeout before a line fails
-fakeyou_timeout = 90
+fakeyou_timeout = 120
 
 # Characters dictionary with their model tokens
 characters = {
