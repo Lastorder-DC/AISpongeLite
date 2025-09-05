@@ -44,7 +44,7 @@ class FakeYou(Service):
                 "started": None,
                 "pending": None,
                 "attempt_failed": Failed(),
-                "cancelled_by_system": Failed(),
+                "cancelled_by_system": None,
                 "dead": Dead(),
                 "complete_success": self.get_wav_content(wav, ijt_data)
             }
