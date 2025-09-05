@@ -68,6 +68,6 @@ async def speak(character: str, text: str):
     # Avoid rate limiting
     finally:
         if getenv("FAKEYOU_EMAIL") and getenv("FAKEYOU_PASSWORD"):
-            await sleep(5)
-        else:
             await sleep(10)
+        else:
+            await sleep(20)
