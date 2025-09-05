@@ -602,7 +602,6 @@ async def on_ready():
     """
 
     try:
-
         # Set bot avatar if it is missing
         if client.user.avatar is None:
             with open("img/Logo.gif", "rb") as file:
@@ -612,6 +611,11 @@ async def on_ready():
         if client.user.banner is None:
             with open("img/Banner.png", "rb") as file:
                 await client.user.edit(banner=file.read())
+    except:
+        # ignore avatar/banner set error
+        pass
+
+    try:
 
         # Fetch all application emojis
         global emojis
