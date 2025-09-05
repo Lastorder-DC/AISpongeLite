@@ -73,5 +73,4 @@ async def speak(character: str, text: str):
                 _log.exception("Giving up Fakeyou TTS generation")
                 raise e
 
-    await sleep(2)
     return result
