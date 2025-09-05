@@ -58,7 +58,7 @@ async def speak(character: str, text: str):
     errCount = 0
     # Attempt to speak line
 
-    while True:
+    while result is None:
         try:
             _log.debug("Generating line with Fakeyou: (%s) %s", character, text)
             with BytesIO((await wait_for(get_running_loop().run_in_executor(None, fakeyou.say, text, characters[character]), fakeyou_timeout)).content) as wav:
