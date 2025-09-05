@@ -54,20 +54,24 @@ async def speak(character: str, text: str):
     :return: AudioSegment of spoken text
     """
 
+    result = None
+
     # Attempt to speak line
     try:
         _log.debug("Generating line with Fakeyou: (%s) %s", character, text)
         with BytesIO((await wait_for(get_running_loop().run_in_executor(None, fakeyou.say, text, characters[character]), fakeyou_timeout)).content) as wav:
-            return AudioSegment.from_wav(wav)
+            result = AudioSegment.from_wav(wav)
 
     # Line failed to generate
     except Exception as e:
-        _log.exception("Fakeyou TTS generation failed")
-        raise e
-
-    # Avoid rate limiting
-    finally:
-        if getenv("FAKEYOU_EMAIL") and getenv("FAKEYOU_PASSWORD"):
+        try:
             await sleep(10)
-        else:
-            await sleep(20)
+            _log.debug("Retry generating line with Fakeyou: (%s) %s", character, text)
+            with BytesIO((await wait_for(get_running_loop().run_in_executor(None, fakeyou.say, text, characters[character]), fakeyou_timeout)).content) as wav:
+                result = AudioSegment.from_wav(wav)
+        except Exception as e:
+            _log.exception("Fakeyou TTS generation failed")
+            raise e
+
+    await sleep(10)
+    return result
