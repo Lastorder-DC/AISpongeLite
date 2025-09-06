@@ -3,3 +3,5 @@ python-dotenv~=1.1.1
 openai~=1.105.0
 pydub~=0.25.1
 fakeyou~=1.2.6
+numpy~=2.3.0
+TTS~=0.22.0
