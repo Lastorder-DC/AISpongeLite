@@ -6,9 +6,10 @@ character maps to a different model so that callers can request distinct
 voices.
 """
 
-from asyncio import sleep, wait_for, get_running_loop
+from asyncio import get_running_loop, sleep, wait_for
 from io import BytesIO
 import logging
+from pathlib import Path
 
 import numpy as np
 from pydub import AudioSegment
@@ -19,13 +20,7 @@ _log = logging.getLogger(__name__)
 # Timeout for generation before retrying
 _tts_timeout = 120
 
-# Map characters to TTS model identifiers. These are generic models
-# bundled with the TTS library and serve as stand‑ins for unique voices.
-_character_models = {
-    "spongebob": "tts_models/en/ljspeech/tacotron2-DDC",
-    "patrick": "tts_models/en/ljspeech/glow-tts",
-    "squidward": "tts_models/en/ljspeech/speedy-speech",
-}
+_model_root = Path(__file__).with_name("tts_models")
 
 # Cache instantiated TTS models so each model is loaded only once.
 _tts_instances: dict[str, TTS] = {}
@@ -34,10 +29,14 @@ _tts_instances: dict[str, TTS] = {}
 def _get_tts(character: str) -> TTS:
     """Return a TTS instance for *character* loading it if necessary."""
 
-    model_name = _character_models.get(character.lower(), _character_models["spongebob"])
-    if model_name not in _tts_instances:
-        _tts_instances[model_name] = TTS(model_name)
-    return _tts_instances[model_name]
+    char = character.lower()
+    model_dir = _model_root / char
+    model_path = model_dir / "model.pth"
+    config_path = model_dir / "config.json"
+    key = str(model_dir)
+    if key not in _tts_instances:
+        _tts_instances[key] = TTS(model_path=str(model_path), config_path=str(config_path))
+    return _tts_instances[key]
 
 
 async def speak(character: str, text: str) -> AudioSegment:
