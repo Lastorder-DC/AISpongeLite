@@ -51,7 +51,15 @@ replacements = {
     "b*tch": "bitch",
     "f**k": "fuck",
     "s**t": "shit",
-    "b**ch": "bitch"
+    "b**ch": "bitch",
+    "p*ssy": "pussy",
+    "F*CK": "FUCK",
+    "SH*T": "SHIT",
+    "B*TCH": "BITCH",
+    "F**K": "FUCK",
+    "S**T": "SHIT",
+    "B**CH": "BITCH",
+    "P*SSY": "PUSSY"
 }
 
 async def speak(character: str, text: str):
