@@ -45,6 +45,14 @@ characters = {
     "french narrator": "weight_edzcfmq6y0vj7pte9pzhq5b6j"
 }
 
+replacements = {
+    "f*ck": "fuck",
+    "sh*t": "shit",
+    "b*tch": "bitch",
+    "f**k": "fuck",
+    "s**t": "shit",
+    "b**ch": "bitch"
+}
 
 async def speak(character: str, text: str):
     """
@@ -56,8 +64,12 @@ async def speak(character: str, text: str):
 
     result = None
     errCount = 0
-    # Attempt to speak line
 
+    # replace censored words
+    for key, value in replacements.items():
+        text = text.replace(key, value)
+
+    # Attempt to speak line
     while result is None:
         try:
             _log.debug("Generating line with Fakeyou: (%s) %s", character, text)
@@ -68,7 +80,7 @@ async def speak(character: str, text: str):
         except Exception as e:
             errCount = errCount + 1
             _log.exception("Fakeyou TTS generation failed %d times", errCount)
-            await sleep(2 * errCount)
+            await sleep(5 * errCount)
             if errCount > 10:
                 _log.exception("Giving up Fakeyou TTS generation")
                 raise e
