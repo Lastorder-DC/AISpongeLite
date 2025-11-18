@@ -14,6 +14,7 @@ from discord import Status, Embed, Interaction, Color, Game, utils, Intents, Cli
 from dotenv import load_dotenv
 from pydub import AudioSegment
 from re import sub
+import logging
 
 # Load .env
 load_dotenv()
