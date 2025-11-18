@@ -1,5 +1,6 @@
 """
-TTS module using FakeYou for text-to-speech synthesis. This is separate to allow for easy swapping of TTS providers.
+TTS module using FakeYou for text-to-speech synthesis.
+This is separate to allow for easy swapping of TTS providers.
 
 Written by Jeremy Noesen
 """
@@ -19,10 +20,10 @@ _log = logging.getLogger(__name__)
 
 # Log in to FakeYou
 fakeyou = FakeYou()
-if getenv("FAKEYOU_EMAIL") and getenv("FAKEYOU_PASSWORD"):
-    # Log in using email and password
-    login = fakeyou.login(getenv("FAKEYOU_EMAIL"), getenv("FAKEYOU_PASSWORD"))
-    _log.info("Logged in to FakeYou as: %s", login.username)
+fakeyou_username = getenv("FAKEYOU_USERNAME")
+fakeyou_password = getenv("FAKEYOU_PASSWORD")
+if fakeyou_username and fakeyou_password:
+    fakeyou.login(fakeyou_username, fakeyou_password)
 
 # Set the FakeYou timeout before a line fails
 fakeyou_timeout = 120
@@ -63,6 +64,9 @@ replacements = {
     "P*SSY": "PUSSY",
     "B*STARD": "BASTARD"
 }
+
+# Whether to allow parallel requests
+allow_parallel = False
 
 async def speak(character: str, text: str):
     """
