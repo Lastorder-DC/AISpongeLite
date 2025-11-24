@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from fakeyou import FakeYou
 from pydub import AudioSegment
 import logging
+from emoji import replace_emoji
 
 # Load .env
 load_dotenv()
@@ -83,6 +84,13 @@ async def speak(character: str, text: str):
     for key, value in replacements.items():
         text = text.replace(key, value)
 
+    # special: if text includes "📯" fails instantly(plays horn sound)
+    if "📯" in text:
+        raise Exception("📯")
+
+    # delete all emojis in text
+    text = replace_emoji(text, replace='')
+
     # Attempt to speak line
     while result is None:
         try:
@@ -96,7 +104,7 @@ async def speak(character: str, text: str):
             errCount = errCount + 1
             _log.exception("Fakeyou TTS generation failed %d times", errCount)
             await sleep(5 * errCount)
-            if errCount > 10:
+            if errCount > 5:
                 _log.exception("Giving up Fakeyou TTS generation")
                 raise e
 
