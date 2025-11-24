@@ -102,9 +102,9 @@ async def speak(character: str, text: str):
         # Line failed to generate
         except Exception as e:
             errCount = errCount + 1
-            _log.exception("Fakeyou TTS generation failed %d times", errCount)
+            _log.exception("Fakeyou TTS generation failed %d times: %s", errCount, text)
             await sleep(5 * errCount)
-            if errCount > 5:
+            if errCount > 4:
                 _log.exception("Giving up Fakeyou TTS generation")
                 raise e
 
