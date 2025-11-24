@@ -91,6 +91,9 @@ async def speak(character: str, text: str):
     # delete all emojis in text
     text = replace_emoji(text, replace='')
 
+    # strip text
+    text = text.strip()
+
     # Attempt to speak line
     while result is None:
         try:
