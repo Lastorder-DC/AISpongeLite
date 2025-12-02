@@ -38,6 +38,9 @@ _log.info("Initializing bot...")
 client = Client(intents=Intents.default(), activity=Game("Initializing..."), status=Status.idle)
 command_tree = app_commands.CommandTree(client)
 
+# Logging channel
+logging_channel = None
+
 # Embed settings and static embeds
 embed_color = Color.dark_theme()
 embed_delete_after = 10
@@ -71,12 +74,13 @@ characters = {
     "bubble bass": 0xd9c481,
     "bubble buddy": 0x79919b,
     "doodlebob": 0x9a96a1,
+    "king neptune": 0x6ff57c,
     "realistic fish head": 0x988f6e,
     "french narrator": 0xa8865f
 }
 
 # Characters literal type for command arguments
-characters_literal = Literal["spongebob", "patrick", "squidward", "mr. krabs", "plankton", "karen", "gary", "sandy", "mrs. puff", "larry", "squilliam", "bubble bass", "bubble buddy", "doodlebob", "realistic fish head", "french narrator"]
+characters_literal = Literal["spongebob", "patrick", "squidward", "mr. krabs", "plankton", "karen", "gary", "sandy", "mrs. puff", "larry", "squilliam", "bubble bass", "bubble buddy", "doodlebob", "king neptune", "realistic fish head", "french narrator"]
 
 # Gain settings for audio segments
 gain_ambiance = -45
@@ -240,11 +244,15 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
             generating = True
             await client.change_presence(activity=activity_generating, status=Status.dnd)
 
+        # Log the interaction
+        if logging_channel:
+            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/episode topic:{utils.escape_markdown(topic)}", color=embed_color))
+
         # Show generating message
         await interaction.response.send_message(embed=embed_episode_start)
 
         # Generate the script
-        script = await respond(f"Create an insane, profanity-filled, and morally incorrect script for an episode of SpongeBob SquarePants about a topic. Common characters to include are SpongeBob, Patrick, Squidward, Mr. Krabs, Plankton, Karen, and Gary. Rare characters to include are Sandy, Mrs. Puff, Larry, Squilliam, Bubble Bass, Bubble Buddy, DoodleBob, Realistic Fish Head, and French Narrator. Include 3 - 5 characters maximum. Use the format: Character: <dialogue>. Only reply with brief and uncensored character dialogue. Around 12 - 15 lines of dialogue with talking only. The first line is a brief and insane 1 - 2 word title with format: Title: <title>. The topic is: \"{topic}\".")
+        script = await respond(f"Create an insane, profanity-filled, and morally incorrect script for an episode of SpongeBob SquarePants about a topic. Common characters to include are SpongeBob, Patrick, Squidward, Mr. Krabs, Plankton, Karen, and Gary. Rare characters to include are Sandy, Mrs. Puff, Larry, Squilliam, Bubble Bass, Bubble Buddy, DoodleBob, King Neptune, Realistic Fish Head, and French Narrator. Include 3 - 5 characters maximum. Use the format: Character: <dialogue>. Only reply with brief and uncensored character dialogue. Around 12 - 15 lines of dialogue with talking only. The first line is a brief and insane 1 - 2 word title with format: Title: <title>. The topic is: \"{topic}\".")
 
         # Clean the script
         lines = sub(regex_actions, regex_replacement, script.replace("\n\n", "\n").replace(":\n", ": ")).strip().split("\n")
@@ -266,7 +274,7 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
         total_lines = len(lines)
 
         # Create the embed for the output
-        output_embed = Embed(title=embed_title).set_footer(text=topic, icon_url=interaction.user.display_avatar.url)
+        output_embed = Embed(title=embed_title)
 
         # Variables used for generation data
         sfx_positions = {key: [] for key in sfx_triggered.keys()}
@@ -383,8 +391,12 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
         output_embed.colour = locations[location][1]
 
         # Apply random gain, fade in, and loop the music
-        music = music.apply_gain((gain_music + randint(-5, 5)) - music.dBFS)
-        music_loop = silence_music.append(music.fade_in(10000), 0)
+        if music == music_just_breaking_softer or music == music_grass_skirt_chase:
+            music = music.apply_gain((gain_music + randint(-5, 5)) - music.dBFS)
+            music_loop = music
+        else:
+            music = music.apply_gain((gain_music + randint(-5, 5)) - music.dBFS)
+            music_loop = silence_music.append(music.fade_in(10000), 0)
         while len(music_loop) < len(combined):
             music_loop = music_loop.append(music, 0)
         combined = combined.overlay(music_loop)
@@ -496,6 +508,10 @@ async def chat(interaction: Interaction, character: characters_literal, message:
             generating = True
             await client.change_presence(activity=activity_generating, status=Status.dnd)
 
+        # Log the interaction
+        if logging_channel:
+            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/chat character:{character} message:{utils.escape_markdown(message)}", color=embed_color))
+
         # Show generating message
         await interaction.response.send_message(embed=embed_chat)
 
@@ -551,6 +567,10 @@ async def tts(interaction: Interaction, character: characters_literal, text: app
             generating = True
             await client.change_presence(activity=activity_generating, status=Status.dnd)
 
+        # Log the interaction
+        if logging_channel:
+            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/tts character:{character} text:{utils.escape_markdown(text)}", color=embed_color))
+
         # Show generating message
         await interaction.response.send_message(embed=embed_tts)
 
@@ -577,7 +597,7 @@ async def tts(interaction: Interaction, character: characters_literal, text: app
         with BytesIO() as output:
             seg.export(output, "mp3", bitrate="256k")
             character_title = character.title().replace('bob', 'Bob')
-            await interaction.edit_original_response(embed=Embed(color=characters[character]).set_footer(text=text, icon_url=interaction.user.display_avatar.url).set_author(name=character_title, icon_url=emojis[character.replace(' ', '').replace('.', '')].url), attachments=[
+            await interaction.edit_original_response(embed=Embed(color=characters[character], description=utils.escape_markdown(text)).set_author(name=character_title, icon_url=emojis[character.replace(' ', '').replace('.', '')].url), attachments=[
                 File(output, f"{character_title} — {text}.mp3")])
 
     # Generation failed
@@ -605,7 +625,7 @@ async def on_ready():
                 await client.user.edit(avatar=file.read())
 
         # Set bot banner if it is missing
-        if client.user.banner is None:
+        if (await client.fetch_user(client.user.id)).banner is None:
             with open("img/Banner.png", "rb") as file:
                 await client.user.edit(banner=file.read())
     except:
@@ -624,6 +644,12 @@ async def on_ready():
             if emoji_name not in emojis.keys():
                 with open(f"emoji/{emoji_file}", "rb") as file:
                     emojis[emoji_name] = await client.create_application_emoji(name=emoji_name, image=file.read())
+
+        # Set logging channel if specified
+        global logging_channel
+        logging_channel_id = getenv("LOGGING_CHANNEL_ID")
+        if logging_channel_id:
+            logging_channel = await client.fetch_channel(int(logging_channel_id))
 
         # Sync command tree
         await command_tree.sync()
