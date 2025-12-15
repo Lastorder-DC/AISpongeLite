@@ -4,7 +4,7 @@
 
 ## About
 
-AI Sponge Lite is a self-hosted Discord bot that generates parody AI Sponge audio episodes, chats, and TTS inspired by
+AI Sponge Lite is a self-hosted Discord bot that generates parody AI Sponge audio episodes, TTS, and chats inspired by
 [AI Sponge Rehydrated](https://aisponge.riskivr.com/).
 
 There used to be a public instance of this bot with a little over 1,800 installations; however, it was shut down due to
@@ -12,10 +12,12 @@ several FakeYou device and account bans.
 
 ### Characters
 
-SpongeBob, Patrick, Squidward, Mr. Krabs, Plankton, Karen, Gary, Sandy, Mrs. Puff, Larry, Squilliam, Bubble Bass,
-Bubble Buddy, DoodleBob, King Neptune, Realistic Fish Head, and French Narrator.
+SpongeBob, Patrick, Squidward, Sandy, Mr. Krabs, Plankton, Gary, Mrs. Puff, Larry, Squilliam, Karen, Narrator,
+Bubble Buddy, Bubble Bass, Perch*, Pearl*, DoodleBob, Mr. Fish, Dutchman*, King Neptune, Man Ray*, and Dirty Bubble.
 
 Character names must be written exactly as shown above, excluding capitalization.
+
+*Only speaks in the AI Sponge Rehydrated instance.
 
 ### Locations
 
@@ -30,10 +32,10 @@ Only one of the following commands can be used at a time globally:
 
 - `/episode`: Generate an audio-only episode. If an episode takes longer than 15 minutes to generate, it will be
   automatically cancelled due to Discord's interaction timeout limit.
-- `/chat`: Chat with a character. History is not remembered, so each message is independent. Your display name is sent
-  so the character can address you.
 - `/tts`: Make a character speak text. This is a shortcut to FakeYou's service. It is also the only way to access
   Squidward's and Sandy's Rehydrated voice models.
+- `/chat`: Chat with a character. History is not remembered, so each message is independent. Your display name is sent
+  so the character can address you.
 
 ## Installation
 
@@ -79,7 +81,7 @@ then follow these instructions. MacOS is not supported by the installation scrip
    download the entire repository.
 2. Open a terminal and navigate to the directory where you saved the script.
 3. Run the script with the command `sudo bash install.sh`.
-4. When prompted, enter the Discord bot token and OpenAI API key you copied earlier. Optionally, you can enter FakeYou 
+4. When prompted, enter the Discord bot token and OpenAI API key you copied earlier. Optionally, you can enter FakeYou
    credentials, as well as a Discord channel ID for logging.
 5. Once the script is finished, you can delete the `install.sh` script.
 
@@ -98,5 +100,15 @@ The bot will be ready to use once its status changes to "Ready!".
 ## Demonstration
 
 ![Episode](img/episode.png)
-![Chat](img/chat.png)
 ![TTS](img/tts.png)
+![Chat](img/chat.png)
+
+## Wall of Fame
+
+The following Patreon supporters are subscribed to the "Wall of Fame" tier, pledging the highest tier of support to
+this project:
+
+- Explode
+
+Thank you to all my supporters for helping to keep this project alive, and thank you especially to everyone listed
+above for your generous support!

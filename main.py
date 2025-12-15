@@ -5,16 +5,16 @@ AI Sponge Lite is a Discord bot that generates parody AI Sponge audio episodes, 
 Written by Jeremy Noesen
 """
 
-from io import BytesIO
-from math import ceil
-from os import getenv, listdir
-from random import randint, randrange, choice, choices
 from typing import Literal
-from discord import Status, Embed, Interaction, Color, Game, utils, Intents, Client, File, app_commands
-from dotenv import load_dotenv
-from pydub import AudioSegment
+from random import randint, randrange, choice, choices
 from re import sub
 import logging
+from math import ceil
+from io import BytesIO
+from os import getenv, listdir
+from dotenv import load_dotenv
+from discord import Status, Embed, Interaction, Color, Game, utils, Intents, Client, File, app_commands
+from pydub import AudioSegment
 
 # Load .env
 load_dotenv()
@@ -22,12 +22,8 @@ load_dotenv()
 _log = logging.getLogger(__name__)
 
 # Load TTS and GPT modules
-from tts import speak, allow_parallel
-from gpt import respond
-
-# Set the input and output char limits
-char_limit_min = 3
-char_limit_max = 256
+from tts import speak, allow_parallel, char_limit_min, char_limit_max, bitrate
+from llm import write
 
 # Discord activity settings
 activity_ready = Game("Ready!")
@@ -46,13 +42,13 @@ embed_color = Color.dark_theme()
 embed_delete_after = 10
 embed_episode_start = Embed(title="Generating...", description="Writing script...", color=embed_color)
 embed_episode_end = Embed(title="Generating...", description="Mixing audio...", color=embed_color)
-embed_chat = Embed(title="Generating...", description="Writing response...", color=embed_color)
 embed_tts = Embed(title="Generating...", description="Speaking text...", color=embed_color)
+embed_chat = Embed(title="Generating...", description="Writing response...", color=embed_color)
 embed_failed = Embed(title="Failed.", description="An error occurred.", color=embed_color)
 embed_in_use = Embed(title="Busy.", description="Currently in use.", color=embed_color)
 
 # Regex patterns for actions in script
-regex_actions = r"(:\s+)(\(+\S[^()]+\S\)+|\[+\S[^\[\]]+\S]+|\*+\S[^*]+\S\*+|<+\S[^<>]+\S>+|\{+\S[^{}]+\S}+|-+\S[^-]+\S-+|\|+\S[^|]+\S\|+|/+\S[^/]+\S/+|\\+\S[^\\]+\S\\+)([^\S\r\n]+)"
+regex_actions = r"(:\s+)(\(+\S[^()]+\S\)+|\[+\S[^\[\]]+\S]+|\*+\S[^*]+\S\*+|<+\S[^<>:]+\S>+|\{+\S[^{}]+\S}+|-+\S[^-]+\S-+|\|+\S[^|]+\S\|+|/+\S[^/]+\S/+|\\+\S[^\\]+\S\\+)([^\S\r\n]+)"
 regex_replacement = r"\1"
 
 # Emojis for the characters
@@ -60,27 +56,32 @@ emojis = {}
 
 # Characters dictionary with their embed colors
 characters = {
-    "spongebob": 0xd4b937,
-    "patrick": 0xf3a18a,
-    "squidward": 0x9fc3b9,
-    "mr. krabs": 0xee4115,
-    "plankton": 0x26732b,
-    "karen": 0x7891b8,
-    "gary": 0xca8e93,
-    "sandy": 0xede0db,
-    "mrs. puff": 0xd8ab72,
-    "larry": 0xe46704,
-    "squilliam": 0xd5f0d7,
-    "bubble bass": 0xd9c481,
-    "bubble buddy": 0x79919b,
-    "doodlebob": 0x9a96a1,
-    "king neptune": 0x6ff57c,
-    "realistic fish head": 0x988f6e,
-    "french narrator": 0xa8865f
+    "spongebob": 0xc3ac30,
+    "patrick": 0xeea68b,
+    "squidward": 0x9abab2,
+    "sandy": 0xc6b4ab,
+    "mr. krabs": 0xde280d,
+    "plankton": 0x0f4708,
+    "gary": 0xc18d86,
+    "mrs. puff": 0xcc9c64,
+    "larry": 0xd55b06,
+    "squilliam": 0xd4ecd7,
+    "karen": 0x778bb0,
+    "narrator": 0x8f7c69,
+    "bubble buddy": 0x788b94,
+    "bubble bass": 0xc0ae6b,
+    "perch": 0x987cb4,
+    "pearl": 0xa7b2b3,
+    "doodlebob": 0x9a94a0,
+    "mr. fish": 0x999072,
+    "dutchman": 0x11c304,
+    "king neptune": 0x82f386,
+    "man ray": 0x0b4881,
+    "dirty bubble": 0x7c522d
 }
 
 # Characters literal type for command arguments
-characters_literal = Literal["spongebob", "patrick", "squidward", "mr. krabs", "plankton", "karen", "gary", "sandy", "mrs. puff", "larry", "squilliam", "bubble bass", "bubble buddy", "doodlebob", "king neptune", "realistic fish head", "french narrator"]
+characters_literal = Literal["spongebob", "patrick", "squidward", "sandy", "mr. krabs", "plankton", "gary", "mrs. puff", "larry", "squilliam", "karen", "narrator", "bubble buddy", "bubble bass", "perch", "pearl", "doodlebob", "mr. fish", "dutchman", "king neptune", "man ray", "dirty bubble"]
 
 # Gain settings for audio segments
 gain_ambiance = -45
@@ -92,11 +93,11 @@ gain_voice_distort = 20
 
 # Ambiance audio segments
 ambiance_time = {
-    AudioSegment.from_wav("ambiance/day.wav"): ["day", "bright", "morning", "noon", "dawn"],
-    AudioSegment.from_wav("ambiance/night.wav"): ["night", "dark", "evening", "dusk"]
+    AudioSegment.from_wav("ambiance/day.wav"): ["day", "bright", "morning", "noon", "dawn", "sunrise", "early"],
+    AudioSegment.from_wav("ambiance/night.wav"): ["night", "dark", "evening", "dusk", "sunset", "late"]
 }
 ambiance_rain = AudioSegment.from_wav("ambiance/rain.wav")
-storm_keywords = ["storm", "thunder", "lightning", "tornado", "hurricane"]
+storm_keywords = ["storm", "thunder", "lightning", "downpour"]
 rain_keywords = ["rain", "drizzle", "shower", "sprinkle", "wet"]
 clear_keywords = ["clear", "dry"]
 fade_ambiance = 500
@@ -121,48 +122,48 @@ locations = {
         music_stars_and_games: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0xd97d00),
+    }, 0xd87c02, "spongebob, patrick, gary"),
     "patrick's house": ({
         music_gator: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x521b1d),
+    }, 0x561e1f, "spongebob, patrick"),
     "squidward's house": ({
         music_comic_walk: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x285663),
+    }, 0x193f51, "spongebob, patrick, squidward"),
     "sandy's treedome": ({
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x387c00),
+    }, 0x2b6f00, "spongebob, patrick, sandy"),
     "krusty krab": ({
         music_tip_top_polka: 5,
         music_rake_hornpipe: 5,
         music_drunken_sailor: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x6b3c0f),
+    }, 0x62390f, "spongebob, patrick, squidward, mr. krabs, plankton"),
     "chum bucket": ({
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x001848),
+    }, 0x2a3644, "plankton, karen"),
     "boating school": ({
         music_hello_sailor_b: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0xc7b208),
+    }, 0xcab307, "spongebob, patrick, mrs. puff"),
     "news studio": ({
         music_just_breaking_softer: 1
-    }, 0x4385d2),
+    }, 0x316ec3, "perch, mr. fish"),
     "rock bottom": ({
         music_rock_bottom: 1
-    }, 0x0b091c),
+    }, 0x101027, "spongebob, patrick, squidward"),
     "bikini bottom": ({
         music_closing_theme: 5,
         music_grass_skirt_chase: 1,
         music_gator: 1
-    }, 0xc2a36b)
+    }, 0xddba8b, "spongebob, patrick, squidward, mr. krabs, plankton, squilliam")
 }
 
 # SFX audio segments
@@ -192,11 +193,11 @@ sfx_random = {
     AudioSegment.from_wav("sfx/phone_call.wav"): 1
 }
 sfx_triggered = {
-    "burp": ([AudioSegment.from_wav("sfx/burp.wav")], ["krabby patt", "food", "burger", "hungry", "ice cream", "pizza", "pie", "fries", "fry", "consum", "cake", "shake", "sushi", "ketchup", "mustard", "mayo", "starv"]),
-    "ball": ([AudioSegment.from_wav("sfx/ball.wav")], ["ball", "bounc", "foul", "soccer", "goal"]),
-    "gun": ([AudioSegment.from_wav(f"sfx/gun_{i}.wav") for i in range(1, 3)], ["shoot", "shot", "kill", "murder", "gun"]),
-    "molotov": ([AudioSegment.from_wav("sfx/molotov.wav")], ["fire", "molotov", "burn", "flame", "ignite", "arson", "light"]),
-    "bomb": ([AudioSegment.from_wav("sfx/bomb_fuse.wav").apply_gain(-20) + AudioSegment.from_wav("sfx/bomb_explosion.wav")], ["boom", "bomb", "explosion", "explode", "fire in the hole", "blow up", "blew up"])
+    "bomb": ([AudioSegment.from_wav("sfx/bomb_fuse.wav").apply_gain(-20) + AudioSegment.from_wav("sfx/bomb_explosion.wav")], ["boom", "bomb", "explosion", "explode", "exploding", "fire in the hole", "blow", "blew", "blast", "firework"]),
+    "gun": ([AudioSegment.from_wav(f"sfx/gun_{i}.wav") for i in range(1, 3)], ["shoot", "shot", "kill", "murder", "gun", "firing", "firearm", "bullet", "pistol", "rifle"]),
+    "molotov": ([AudioSegment.from_wav("sfx/molotov.wav")], ["fire", "molotov", "burn", "flame", "flaming", "ignite", "igniting", "arson", "light", "lit", "hot", "blaze", "blazing", "combust"]),
+    "ball": ([AudioSegment.from_wav("sfx/ball.wav")], ["ball", "bounce", "bouncing", "bouncy", "foul", "soccer", "goal", "catch", "throw", "toss", "kick"]),
+    "burp": ([AudioSegment.from_wav("sfx/burp.wav")], ["krabby patty", "krabby patties", "food", "burger", "hungry", "hungrier", "ice cream", "pizza", "pie", "fries", "fry", "consume", "consuming", "consumption", "cake", "shake", "sushi", "ketchup", "mustard", "mayo", "starve", "starving", "snack", "burp"])
 }
 sfx_transition = AudioSegment.from_wav("sfx/transition.wav")
 sfx_transition = sfx_transition.apply_gain(gain_sfx - sfx_transition.dBFS)
@@ -239,6 +240,9 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
     # Start generation
     try:
 
+        # Show generating message
+        await interaction.response.send_message(embed=embed_episode_start)
+
         # Block generation
         if not allow_parallel:
             generating = True
@@ -248,38 +252,64 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
         if logging_channel:
             await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/episode topic:{utils.escape_markdown(topic)}", color=embed_color))
 
-        # Show generating message
-        await interaction.response.send_message(embed=embed_episode_start)
+        # Lowercase version of topic for processing
+        topic_lower = topic.lower()
+
+        # Get location from topic or choose a random one
+        location = choice(list(locations.keys()))
+        for key in locations.keys():
+            if key in topic_lower:
+                location = key
+                break
+
+        # Get ambiance from topic or choose a random one
+        ambiance = choice(list(ambiance_time.keys()))
+        for key in ambiance_time.keys():
+            if any(word in topic_lower for word in ambiance_time[key]):
+                ambiance = key
+                break
+
+        # Determine rain intensity from topic or randomly
+        if any(word in topic_lower for word in storm_keywords):
+            rain_intensity = randint(1, 5)
+            weather = "stormy"
+        elif any(word in topic_lower for word in rain_keywords):
+            rain_intensity = randint(-5, 0)
+            weather = "rainy"
+        elif any(word in topic_lower for word in clear_keywords):
+            rain_intensity = None
+            weather = "clear"
+        elif randrange(5) == 0:
+            rain_intensity = randint(-5, 5)
+            weather = "rainy" if rain_intensity <= 0 else "stormy"
+        else:
+            rain_intensity = None
+            weather = "clear"
 
         # Generate the script
-        script = await respond(f"Create an insane, profanity-filled, and morally incorrect script for an episode of SpongeBob SquarePants about a topic. Common characters to include are SpongeBob, Patrick, Squidward, Mr. Krabs, Plankton, Karen, and Gary. Rare characters to include are Sandy, Mrs. Puff, Larry, Squilliam, Bubble Bass, Bubble Buddy, DoodleBob, King Neptune, Realistic Fish Head, and French Narrator. Include 3 - 5 characters maximum. Use the format: Character: <dialogue>. Only reply with brief and uncensored character dialogue. Around 12 - 15 lines of dialogue with talking only. The first line is a brief and insane 1 - 2 word title with format: Title: <title>. The topic is: \"{topic}\".")
+        script = await write(f"Write an insane, profanity-filled, and morally incorrect script for a spongebob episode about a topic. Characters in this episode are {locations[location][2]}, and any characters mentioned in the topic. This episode takes place on a {weather} {ambiance_time[ambiance][0]} in {location}. Use the format: character: <dialogue>. Only reply with brief and uncensored character dialogue. Around 12 - 15 lines of dialogue with talking only. The first line is a brief and insane 1 - 2 word episode title with format: title: <title>. The topic is: \"{topic}\".")
 
         # Clean the script
         lines = sub(regex_actions, regex_replacement, script.replace("\n\n", "\n").replace(":\n", ": ")).strip().split("\n")
 
         # Get the episode title
         line_parts = lines.pop(0).split(":", 1)
-        file_title = "NO TiTLE"
-        embed_title = "**N**O **T**iTLE"
+        title_formatted = "No Title"
         if len(line_parts) == 2 and "title" in line_parts[0].lower():
-            title = line_parts[1].strip()
+            title = line_parts[1].strip()[:char_limit_max].strip()
             if title:
-                if len(title) > char_limit_max:
-                    title = title[:char_limit_max - 3] + "..."
-                file_title = title.upper().replace("I", "i")
-                embed_title = "".join(f"**{char}**​" if char.isupper() or char.isnumeric() or char in ".,!?" else char for char in utils.escape_markdown(title)).upper().replace("I", "i")
+                title_formatted = title
 
         # Keep track of current line and the total number of lines
         current_line = 1
         total_lines = len(lines)
 
         # Create the embed for the output
-        output_embed = Embed(title=embed_title)
+        output_embed = Embed(title=utils.escape_markdown(title_formatted), color=locations[location][1])
 
         # Variables used for generation data
         sfx_positions = {key: [] for key in sfx_triggered.keys()}
         combined = AudioSegment.empty()
-        script_lower = ""
 
         # Process each line
         for line in lines:
@@ -287,9 +317,15 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
             # Update generation status
             await interaction.edit_original_response(embed=Embed(title="Generating...", description=f"Speaking line `{current_line}/{min(total_lines, 25)}`...", color=embed_color))
 
-            # Skip line if it is too short or improperly formatted
+            # Skip line if it is improperly formatted
             line_parts = line.split(":", 1)
-            if len(line_parts) != 2 or len(line_parts[1].strip()) < char_limit_min:
+            if len(line_parts) != 2:
+                total_lines -= 1
+                continue
+
+            # Skip line if it is too short
+            output_line = line_parts[1].strip()[:char_limit_max].strip()
+            if len(output_line) < char_limit_min:
                 total_lines -= 1
                 continue
 
@@ -304,11 +340,6 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
             if not character:
                 total_lines -= 1
                 continue
-
-            # Set the text to speak and to show
-            output_line = line_parts[1].strip()
-            if len(output_line) > char_limit_max:
-                output_line = output_line[:char_limit_max - 3] + "..."
 
             # Speak line using voice files for DoodleBob
             if character == "doodlebob":
@@ -329,6 +360,12 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
                 except:
                     seg = voice_failed
 
+            # Check if any of the word-activated SFX should happen
+            for sfx in sfx_triggered.keys():
+                if any(keyword in output_line.lower() for keyword in sfx_triggered[sfx][1]):
+                    sfx_positions[sfx].append(len(combined) + randrange(len(seg)))
+                    break
+
             # Apply gain, forcing a loud event sometimes
             if output_line.isupper() or randrange(20) == 0:
                 seg = seg.apply_gain(gain_voice_distort)
@@ -336,14 +373,6 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
                 output_line = output_line.upper()
             else:
                 seg = seg.apply_gain(gain_voice-seg.dBFS)
-
-            # Check if any of the word-activated SFX should happen
-            output_line_lower = output_line.lower()
-            for sfx in sfx_triggered.keys():
-                keywords = sfx_triggered[sfx][1]
-                collection = sfx_positions[sfx]
-                if any(keyword in output_line_lower for keyword in keywords) and not ("fire" in keywords and "fire in the hole" in output_line_lower):
-                    collection.append(len(combined) + randrange(len(seg)))
 
             # Add the line to the combined audio segment
             combined = combined.append(seg, 0)
@@ -356,7 +385,6 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
 
             # Add the line to the output script
             output_embed.add_field(name="", value=f"{emojis[character.replace(' ', '').replace('.', '')]} ​ ​ {utils.escape_markdown(output_line)}", inline=False)
-            script_lower += output_line_lower + "\n"
 
             # Line completed
             current_line += 1
@@ -371,26 +399,8 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
         # Add silence at the end of the episode
         combined = combined.append(silence_line, 0)
 
-        # Lowercase version of topic for processing
-        topic_lower = topic.lower()
-
-        # Add music to the episode based on location or randomly
-        location = None
-        for text in (topic_lower, script_lower):
-            for key in locations.keys():
-                if key in text:
-                    location = key
-                    break
-            if location:
-                break
-        if not location:
-            location = choice(list(locations.keys()))
+        # Add music to the episode based on location
         music = choices(list(locations[location][0].keys()), list(locations[location][0].values()))[0]
-
-        # Set the embed color based on the location
-        output_embed.colour = locations[location][1]
-
-        # Apply random gain, fade in, and loop the music
         if music == music_just_breaking_softer or music == music_grass_skirt_chase:
             music = music.apply_gain((gain_music + randint(-5, 5)) - music.dBFS)
             music_loop = music
@@ -401,42 +411,15 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
             music_loop = music_loop.append(music, 0)
         combined = combined.overlay(music_loop)
 
-        # Add day or night ambiance to the episode if topic or script contains keywords or randomly
-        ambiance = None
-        for text in (topic_lower, script_lower):
-            for key in ambiance_time.keys():
-                if any(word in text for word in ambiance_time[key]):
-                    ambiance = key
-                    break
-            if ambiance:
-                break
-        if not ambiance:
-            ambiance = choice(list(ambiance_time.keys()))
-
-        # Apply random gain, fade in, and loop the ambiance sound
+        # Add day or night ambiance to the episode
         ambiance = ambiance.apply_gain((gain_ambiance + randint(-5, 5)) - ambiance.dBFS)
         ambiance_loop = ambiance.fade_in(fade_ambiance)
         while len(ambiance_loop) < len(combined):
             ambiance_loop = ambiance_loop.append(ambiance, 0)
         combined = combined.overlay(ambiance_loop)
 
-        # Add rain sounds to the episode if topic contains keywords or randomly
-        rain_intensity = None
-        if randrange(5) == 0:
-            rain_intensity = randint(-5, 5)
-        for text in (topic_lower, script_lower):
-            if any(word in text for word in storm_keywords):
-                rain_intensity = randint(1, 5)
-                break
-            elif any(word in text for word in rain_keywords):
-                rain_intensity = randint(-5, 0)
-                break
-            elif any(word in text for word in clear_keywords):
-                rain_intensity = None
-                break
+        # Add rain sounds to the episode
         if rain_intensity is not None:
-
-            # Apply random gain, fade in, and loop the rain sound
             rain_randomized = ambiance_rain.apply_gain((gain_ambiance + rain_intensity) - ambiance_rain.dBFS)
             rain_loop = rain_randomized.fade_in(fade_ambiance)
             while len(rain_loop) < len(combined):
@@ -464,68 +447,9 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
 
         # Export the episode and send it
         with BytesIO() as output:
-            combined.export(output, "mp3", bitrate="256k")
+            combined.export(output, "mp3", bitrate=bitrate)
             await interaction.edit_original_response(embed=output_embed, attachments=[
-                File(output, f"{file_title}.mp3")])
-
-    # Generation failed
-    except:
-        await interaction.edit_original_response(embed=embed_failed)
-
-    # Unblock generation
-    finally:
-        if not allow_parallel:
-            generating = False
-            await client.change_presence(activity=activity_ready, status=Status.online)
-
-
-@command_tree.command(description="Chat with a character.")
-@app_commands.describe(character="Character to chat with.", message="Message to send.")
-@app_commands.allowed_installs(True, False)
-@app_commands.allowed_contexts(True, False, True)
-async def chat(interaction: Interaction, character: characters_literal, message: app_commands.Range[str, char_limit_min, char_limit_max]):
-    """
-    Chat with one of the characters.
-    :param interaction: Interaction created by the command
-    :param character: Character to chat with
-    :param message: Message to send to the character
-    :return: None
-    """
-
-    # Get global variable
-    global generating
-
-    # Check if something is generating
-    if generating:
-        await interaction.response.send_message(ephemeral=True, delete_after=embed_delete_after, embed=embed_in_use)
-        return
-
-    # Start generation
-    try:
-
-        # Block generation
-        if not allow_parallel:
-            generating = True
-            await client.change_presence(activity=activity_generating, status=Status.dnd)
-
-        # Log the interaction
-        if logging_channel:
-            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/chat character:{character} message:{utils.escape_markdown(message)}", color=embed_color))
-
-        # Show generating message
-        await interaction.response.send_message(embed=embed_chat)
-
-        # Generate the chat response
-        character_title = character.title().replace("bob", "Bob")
-        response = await respond(f"Create an insane and morally incorrect response to a Discord message as {character_title} from SpongeBob SquarePants. Use the format: {character_title}: <response>. Only reply with {character_title}'s brief response. The message from \"{interaction.user.display_name}\" is: \"{message}\".")
-
-        # Clean the response text
-        output = utils.escape_markdown(sub(regex_actions, regex_replacement, response.replace("\n\n", "\n").replace(":\n", ": ")).strip().split("\n")[0].split(":", 1)[1].strip())
-        if len(output) > char_limit_max:
-            output = output[:char_limit_max - 3] + "..."
-
-        # Send the response
-        await interaction.edit_original_response(embed=Embed(description=output, color=characters[character]).set_footer(text=message, icon_url=interaction.user.display_avatar.url).set_author(name=character_title, icon_url=emojis[character.replace(' ', '').replace('.', '')].url))
+                File(output, f"{title_formatted.replace('/', '\\')}.mp3")])
 
     # Generation failed
     except:
@@ -562,6 +486,9 @@ async def tts(interaction: Interaction, character: characters_literal, text: app
     # Start generation
     try:
 
+        # Show generating message
+        await interaction.response.send_message(embed=embed_tts)
+
         # Block generation
         if not allow_parallel:
             generating = True
@@ -570,9 +497,6 @@ async def tts(interaction: Interaction, character: characters_literal, text: app
         # Log the interaction
         if logging_channel:
             await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/tts character:{character} text:{utils.escape_markdown(text)}", color=embed_color))
-
-        # Show generating message
-        await interaction.response.send_message(embed=embed_tts)
 
         # Speak text using voice files for DoodleBob
         if character == "doodlebob":
@@ -595,10 +519,66 @@ async def tts(interaction: Interaction, character: characters_literal, text: app
 
         # Export and send the file
         with BytesIO() as output:
-            seg.export(output, "mp3", bitrate="256k")
+            seg.export(output, "mp3", bitrate=bitrate)
             character_title = character.title().replace('bob', 'Bob')
             await interaction.edit_original_response(embed=Embed(color=characters[character], description=utils.escape_markdown(text)).set_author(name=character_title, icon_url=emojis[character.replace(' ', '').replace('.', '')].url), attachments=[
-                File(output, f"{character_title} — {text}.mp3")])
+                File(output, f"{character_title}: {text.replace('/', '\\')}.mp3")])
+
+    # Generation failed
+    except:
+        await interaction.edit_original_response(embed=embed_failed)
+
+    # Unblock generation
+    finally:
+        if not allow_parallel:
+            generating = False
+            await client.change_presence(activity=activity_ready, status=Status.online)
+
+
+@command_tree.command(description="Chat with a character.")
+@app_commands.describe(character="Character to chat with.", message="Message to send.")
+@app_commands.allowed_installs(True, False)
+@app_commands.allowed_contexts(True, False, True)
+async def chat(interaction: Interaction, character: characters_literal, message: app_commands.Range[str, char_limit_min, char_limit_max]):
+    """
+    Chat with one of the characters.
+    :param interaction: Interaction created by the command
+    :param character: Character to chat with
+    :param message: Message to send to the character
+    :return: None
+    """
+
+    # Get global variable
+    global generating
+
+    # Check if something is generating
+    if generating:
+        await interaction.response.send_message(ephemeral=True, delete_after=embed_delete_after, embed=embed_in_use)
+        return
+
+    # Start generation
+    try:
+
+        # Show generating message
+        await interaction.response.send_message(embed=embed_chat)
+
+        # Block generation
+        if not allow_parallel:
+            generating = True
+            await client.change_presence(activity=activity_generating, status=Status.dnd)
+
+        # Log the interaction
+        if logging_channel:
+            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/chat character:{character} message:{utils.escape_markdown(message)}", color=embed_color))
+
+        # Generate the chat response
+        response = await write(f"Write an insane and morally incorrect response to a discord message as {character} from spongebob. Use the format: {character}: <response>. Only reply with {character}'s brief response. The message from \"{interaction.user.display_name}\" says: \"{message}\".")
+
+        # Clean the response text
+        output = utils.escape_markdown(sub(regex_actions, regex_replacement, response.replace("\n\n", "\n").replace(":\n", ": ")).strip().split("\n")[0].split(":", 1)[1].strip()[:char_limit_max].strip())
+
+        # Send the response
+        await interaction.edit_original_response(embed=Embed(description=output, color=characters[character]).set_footer(text=message, icon_url=interaction.user.display_avatar.url).set_author(name=character.title().replace("bob", "Bob"), icon_url=emojis[character.replace(' ', '').replace('.', '')].url))
 
     # Generation failed
     except:
