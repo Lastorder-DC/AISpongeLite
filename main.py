@@ -196,11 +196,11 @@ sfx_random = {
     AudioSegment.from_wav("sfx/train.wav"): 1
 }
 sfx_triggered = {
-    "bomb": ([AudioSegment.from_wav("sfx/bomb_fuse.wav").apply_gain(-20) + AudioSegment.from_wav("sfx/bomb_explosion.wav")], ["boom", "bomb", "explosion", "explode", "exploding", "fire in the hole", "blow", "blew", "blast", "firework"]),
+    "bomb": ([AudioSegment.from_wav("sfx/bomb_fuse.wav").apply_gain(-20) + AudioSegment.from_wav("sfx/bomb_explosion.wav")], ["boom", "bomb", "explosion", "explode", "exploding", "fire in the hole", "blow", "blew", "blast", "firework", "dynamite", "grenade", "detonate", "detonating"]),
     "gun": ([AudioSegment.from_wav(f"sfx/gun_{i}.wav") for i in range(1, 3)], ["shoot", "shot", "kill", "murder", "gun", "firing", "firearm", "bullet", "pistol", "rifle"]),
     "molotov": ([AudioSegment.from_wav("sfx/molotov.wav")], ["fire", "molotov", "burn", "flame", "flaming", "ignite", "igniting", "arson", "light", "hot", "blaze", "blazing", "combust"]),
     "ball": ([AudioSegment.from_wav("sfx/ball.wav")], ["ball", "bounce", "bouncing", "bouncy", "foul", "soccer", "goal", "catch", "throw", "toss", "kick"]),
-    "burp": ([AudioSegment.from_wav("sfx/burp.wav")], ["krabby patty", "krabby patties", "food", "burger", "hungry", "hungrier", "ice cream", "pizza", "pie", "fries", "fry", "consume", "consuming", "consumption", "cake", "shake", "sushi", "ketchup", "mustard", "mayo", "starve", "starving", "snack", "burp"])
+    "burp": ([AudioSegment.from_wav("sfx/burp.wav")], ["krabby patty", "krabby patties", "food", "burger", "hungry", "hungrier", "ice cream", "pizza", "pie", "fries", "fry", "consume", "consuming", "consumption", "cake", "shake", "sushi", "ketchup", "mustard", "mayo", "starve", "starving", "snack", "burp", "sandwich"])
 }
 sfx_transition = AudioSegment.from_wav("sfx/transition.wav")
 sfx_transition = sfx_transition.apply_gain(gain_sfx - sfx_transition.dBFS)
@@ -256,7 +256,7 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
             await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/episode topic:{utils.escape_markdown(topic)}", color=embed_color))
 
         # Lowercase version of topic for processing
-        topic_lower = topic.lower()
+        topic_lower = topic.lower().replace("’", "'")
 
         # Get location from topic or choose a random one
         location = choice(list(locations.keys()))
@@ -290,7 +290,7 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
             weather = "clear"
 
         # Generate the script
-        script = await write(f"Write an insane, profanity-filled, and morally incorrect script for a spongebob episode about a topic. Characters in this episode are {locations[location][2]}, and any characters mentioned in the topic. This episode takes place on a {weather} {ambiance_time[ambiance][0]} in {location}. Use the format: character: <dialogue>. Only reply with brief and uncensored character dialogue. Around 12 - 15 lines of dialogue with talking only. The first line is a brief and insane 1 - 2 word episode title with format: title: <title>. The topic is: \"{topic}\".")
+        script = await write(f"Write a fucking chaotic, profanity-filled, and morally incorrect script for a spongebob episode about a topic that takes place on a {weather} {ambiance_time[ambiance][0]} in {location} and features {locations[location][2]}, and any characters mentioned in the topic. Only respond with a two-word, spongebob-style title using the format: title: <title> followed by ten lines of brief character dialogue using the format: character: <dialogue>. The topic is: \"{topic}\".")
 
         # Clean the script
         lines = sub(regex_actions, regex_replacement, script.replace("\n\n", "\n").replace(":\n", ": ")).strip().split("\n")
@@ -452,7 +452,7 @@ async def episode(interaction: Interaction, topic: app_commands.Range[str, char_
         with BytesIO() as output:
             combined.export(output, "mp3", bitrate=bitrate)
             await interaction.edit_original_response(embed=output_embed, attachments=[
-                File(output, f"{title_formatted.replace('/', '\\')}.mp3")])
+                File(output, title_formatted.replace("/", "\\") + ".mp3")])
 
     # Generation failed
     except:
@@ -525,7 +525,7 @@ async def tts(interaction: Interaction, character: characters_literal, text: app
             seg.export(output, "mp3", bitrate=bitrate)
             character_title = character.title().replace('bob', 'Bob')
             await interaction.edit_original_response(embed=Embed(color=characters[character], description=utils.escape_markdown(text)).set_author(name=character_title, icon_url=emojis[character.replace(' ', '').replace('.', '')].url), attachments=[
-                File(output, f"{character_title}: {text.replace('/', '\\')}.mp3")])
+                File(output, character_title + ": " + text.replace("/", "\\") + ".mp3")])
 
     # Generation failed
     except:
@@ -575,7 +575,7 @@ async def chat(interaction: Interaction, character: characters_literal, message:
             await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/chat character:{character} message:{utils.escape_markdown(message)}", color=embed_color))
 
         # Generate the chat response
-        response = await write(f"Write an insane and morally incorrect response to a discord message as {character} from spongebob. Use the format: {character}: <response>. Only reply with {character}'s brief response. The message from \"{interaction.user.display_name}\" says: \"{message}\".")
+        response = await write(f"Write a response to a discord message as {character} from spongebob. Only respond with {character}'s brief response using the format: {character}: <response>. The message from \"{interaction.user.display_name}\" says: \"{message}\".")
 
         # Clean the response text
         output = utils.escape_markdown(sub(regex_actions, regex_replacement, response.replace("\n\n", "\n").replace(":\n", ": ")).strip().split("\n")[0].split(":", 1)[1].strip()[:char_limit_max].strip())
