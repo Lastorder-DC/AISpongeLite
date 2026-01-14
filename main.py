@@ -20,6 +20,11 @@ from pydub import AudioSegment
 # Load .env
 load_dotenv()
 
+guild_list_env = getenv("ALLOWED_GUILD_IDS")
+ALLOWED_GUILD_IDS = []
+if guild_list_env:
+    ALLOWED_GUILD_IDS = [int(guild_id.strip()) for guild_id in guild_list_env.split(",") if guild_id.strip()]
+
 # Load TTS and GPT modules
 from tts import speak, allow_parallel, char_limit_min, char_limit_max, bitrate
 from llm import write
@@ -31,6 +36,24 @@ activity_generating = Game("Generating...")
 # Initialize Discord client
 client = Client(intents=Intents.default(), activity=Game("Initializing..."), status=Status.idle)
 command_tree = CommandTree(client)
+
+async def interaction_check(interaction: Interaction) -> bool:
+    """
+    Verify that the command was executed on an authorized guild.
+    """
+    if not ALLOWED_GUILD_IDS:
+        return True
+    
+    if interaction.guild_id is None or interaction.guild_id not in ALLOWED_GUILD_IDS:
+        await interaction.response.send_message(
+            embed=Embed(title="Access Denied", description="This bot is only available on authorized guilds.", color=Color.red()),
+            ephemeral=True
+        )
+        return False
+    
+    return True
+
+command_tree.interaction_check = interaction_check
 
 # Logging channel
 logging_channel = None
@@ -600,6 +623,15 @@ async def chat(interaction: Interaction, character: characters_literal, message:
         if not allow_parallel:
             generating = False
             await client.change_presence(activity=activity_ready, status=Status.online)
+
+
+@client.event
+async def on_guild_join(guild):
+    """
+    When a bot joins a guild, it checks whether the guild is authorized; if not, it leaves.
+    """
+    if ALLOWED_GUILD_IDS and guild.id not in ALLOWED_GUILD_IDS:
+        await guild.leave()
 
 
 @client.event
