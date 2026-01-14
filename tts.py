@@ -90,6 +90,10 @@ async def speak(character: str, text: str):
     result = None
     errCount = 0
 
+    # if characters[character] does not exist, raise exception
+    if character not in characters:
+        raise Exception(f"Character '{character}' not found in characters dictionary")
+
     # replace censored words
     for key, value in replacements.items():
         text = text.replace(key, value)
