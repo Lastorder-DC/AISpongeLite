@@ -11,6 +11,7 @@ from io import BytesIO
 from os import getenv
 from dotenv import load_dotenv
 from fakeyou import FakeYou
+from fakeyou.exception import Failed, TooManyRequests 
 from pydub import AudioSegment
 import logging
 from emoji import replace_emoji
@@ -115,14 +116,29 @@ async def speak(character: str, text: str):
             output = await wait_for(get_running_loop().run_in_executor(None, fakeyou.say, text, characters[character]), fakeyou_timeout)
             with BytesIO(output.content) as wav:
                 result = AudioSegment.from_wav(wav)
-
-        # Line failed to generate
-        except Exception as e:
+        
+        except TooManyRequests as e:
             errCount = errCount + 1
-            _log.exception("Fakeyou TTS generation failed %d times: %s", errCount, text)
+            _log.error("Fakeyou TooManyRequests detected. Retrying... (%d times)", errCount)
             await sleep(5 * errCount)
             if errCount > 4:
-                _log.exception("Giving up Fakeyou TTS generation")
+                _log.error("Giving up Fakeyou TTS generation due to Rate Limit")
+                raise e
+
+        except Failed as e:
+            errCount = errCount + 1
+            _log.error("Fakeyou Failed exception detected. Retrying... (%d times)", errCount)
+            await sleep(5 * errCount)
+            if errCount > 4:
+                _log.error("Giving up Fakeyou TTS generation due to Failed Error")
+                raise e
+        
+        except Exception as e:
+            errCount = errCount + 1
+            _log.error("Fakeyou General exception detected. Retrying... (%d times)", errCount)
+            await sleep(5 * errCount)
+            if errCount > 4:
+                _log.error("Giving up Fakeyou TTS generation due to Error")
                 raise e
 
     return result
