@@ -293,7 +293,9 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
             weather = "clear"
 
         # Generate the script
-        script = await write(f"Write a fucking chaotic, profanity-filled, and morally incorrect script for a spongebob episode about a topic that takes place on a {weather} {ambiance_time[ambiance][0]} in {location} and features {locations[location][2]}, and any characters mentioned in the topic. Only respond with a two-word, spongebob-style title using the format: title: <title> followed by ten lines of brief character dialogue using the format: <character>: <dialogue>. The topic is: \"{topic}\".")
+        prompt = f"Write a fucking chaotic, profanity-filled, and morally incorrect script for a spongebob episode about a topic that takes place on a {weather} {ambiance_time[ambiance][0]} in {location} and features {locations[location][2]}, and any characters mentioned in the topic. Only respond with a two-word, spongebob-style title using the format: title: <title> followed by ten lines of brief character dialogue using the format: <character>: <dialogue>. The topic is: \"{topic}\"."
+        logging.error(prompt)
+        script = await write(prompt)
 
         # Clean the script
         lines = script.replace("\n\n", "\n").replace(":\n", ": ").strip().split("\n")
