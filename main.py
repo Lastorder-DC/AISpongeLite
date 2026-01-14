@@ -13,7 +13,7 @@ from math import ceil
 from io import BytesIO
 from os import getenv, listdir
 from dotenv import load_dotenv
-from discord import Status, Embed, Interaction, Color, Game, Intents, Client, File
+from discord import Status, Embed, Interaction, Color, Game, Intents, Client, File, Object
 from discord.utils import escape_markdown
 from discord.app_commands import CommandTree, Range, describe, allowed_installs, allowed_contexts
 from pydub import AudioSegment
@@ -22,6 +22,13 @@ from pydub import AudioSegment
 load_dotenv()
 
 _log = logging.getLogger(__name__)
+
+server_list_env = getenv("SERVER_LIST")
+ALLOWED_GUILD_IDS = []
+if server_list_env:
+    ALLOWED_GUILD_IDS = [int(guild_id.strip()) for guild_id in server_list_env.split(",") if guild_id.strip()]
+
+_log.info(f"Allowed Guild IDs: {ALLOWED_GUILD_IDS}")
 
 # Load TTS and GPT modules
 from tts import speak, allow_parallel, char_limit_min, char_limit_max, bitrate
@@ -35,6 +42,24 @@ activity_generating = Game("Generating...")
 _log.info("Initializing bot...")
 client = Client(intents=Intents.default(), activity=Game("Initializing..."), status=Status.idle)
 command_tree = CommandTree(client)
+
+async def interaction_check(interaction: Interaction) -> bool:
+    """
+    Verify that the command was executed on an authorized server.
+    """
+    if not ALLOWED_GUILD_IDS:
+        return True
+    
+    if interaction.guild_id is None or interaction.guild_id not in ALLOWED_GUILD_IDS:
+        await interaction.response.send_message(
+            embed=Embed(title="Access Denied", description="This bot is only available on authorized servers.", color=Color.red()),
+            ephemeral=True
+        )
+        return False
+    
+    return True
+
+command_tree.interaction_check = interaction_check
 
 # Logging channel
 logging_channel = None
@@ -605,6 +630,16 @@ async def chat(interaction: Interaction, character: characters_literal, message:
         if not allow_parallel:
             generating = False
             await client.change_presence(activity=activity_ready, status=Status.online)
+
+
+@client.event
+async def on_guild_join(guild):
+    """
+    When a bot joins a server, it checks whether the server is authorized; if not, it leaves.
+    """
+    if ALLOWED_GUILD_IDS and guild.id not in ALLOWED_GUILD_IDS:
+        _log.error(f"Joined unauthorized guild: {guild.name} ({guild.id}). Leaving...")
+        await guild.leave()
 
 
 @client.event
