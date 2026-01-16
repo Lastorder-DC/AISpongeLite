@@ -6,9 +6,8 @@ Written by Jeremy Noesen
 """
 
 from os import getenv
-from asyncio import sleep, wait_for, get_running_loop
+from asyncio import sleep, wait_for, get_running_loop, TimeoutError as AsyncTimeoutError
 from io import BytesIO
-from os import getenv
 from dotenv import load_dotenv
 from fakeyou import FakeYou
 from fakeyou.exception import Failed, TooManyRequests 
@@ -29,7 +28,7 @@ if fakeyou_username and fakeyou_password:
     fakeyou.login(fakeyou_username, fakeyou_password)
 
 # Set the FakeYou timeout before a line fails
-fakeyou_timeout = 120
+fakeyou_timeout = 20
 
 # Characters dictionary with their model tokens
 characters = {
@@ -117,12 +116,16 @@ async def speak(character: str, text: str):
             with BytesIO(output.content) as wav:
                 result = AudioSegment.from_wav(wav)
         
+        except AsyncTimeoutError as e:
+            _log.error("Giving up Fakeyou TTS generation - Fakeyou Timeout (%ds)", fakeyou_timeout)
+            raise e
+
         except TooManyRequests as e:
             errCount = errCount + 1
             _log.error("Fakeyou TooManyRequests detected. Retrying... (%d times)", errCount)
             await sleep(5 * errCount)
             if errCount > 4:
-                _log.error("Giving up Fakeyou TTS generation due to Rate Limit")
+                _log.error("Giving up Fakeyou TTS generation")
                 raise e
 
         except Failed as e:
@@ -130,7 +133,7 @@ async def speak(character: str, text: str):
             _log.error("Fakeyou Failed exception detected. Retrying... (%d times)", errCount)
             await sleep(5 * errCount)
             if errCount > 4:
-                _log.error("Giving up Fakeyou TTS generation due to Failed Error")
+                _log.error("Giving up Fakeyou TTS generation")
                 raise e
         
         except Exception as e:
@@ -138,7 +141,7 @@ async def speak(character: str, text: str):
             _log.exception("Fakeyou General exception detected. Retrying... (%d times)", errCount)
             await sleep(5 * errCount)
             if errCount > 4:
-                _log.error("Giving up Fakeyou TTS generation due to Error")
+                _log.error("Giving up Fakeyou TTS generation")
                 raise e
 
     return result
