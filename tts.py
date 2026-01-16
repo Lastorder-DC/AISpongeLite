@@ -135,7 +135,7 @@ async def speak(character: str, text: str):
         
         except Exception as e:
             errCount = errCount + 1
-            _log.error("Fakeyou General exception detected. Retrying... (%d times)", errCount)
+            _log.exception("Fakeyou General exception detected. Retrying... (%d times)", errCount)
             await sleep(5 * errCount)
             if errCount > 4:
                 _log.error("Giving up Fakeyou TTS generation due to Error")
