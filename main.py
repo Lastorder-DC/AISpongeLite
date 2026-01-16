@@ -17,6 +17,7 @@ from discord import Status, Embed, Interaction, Color, Game, Intents, Client, Fi
 from discord.utils import escape_markdown
 from discord.app_commands import CommandTree, Range, describe, allowed_installs, allowed_contexts
 from pydub import AudioSegment
+from pydub.effects import high_pass_filter, low_pass_filter
 from asyncio import TimeoutError as AsyncTimeoutError
 
 # Load .env
@@ -78,39 +79,38 @@ embed_in_use = Embed(title="Busy.", description="Currently in use.", color=embed
 
 # Regex patterns for script modification
 regex_actions = r"^[*<([][^:@#]+?[])>*]\s+"
-regex_emoji = r"(<[^<>]*[:@#][^<>]*>)"
 
 # Emojis for the characters
 emojis = {}
 
 # Characters dictionary with their embed colors
 characters = {
-    "spongebob": 0xc3ac30,
-    "patrick": 0xeea68b,
-    "squidward": 0x9abab2,
-    "sandy": 0xc6b4ab,
-    "mr. krabs": 0xde280d,
-    "plankton": 0x0f4708,
-    "gary": 0xc18d86,
-    "mrs. puff": 0xcc9c64,
-    "larry": 0xd55b06,
-    "squilliam": 0xd4ecd7,
-    "karen": 0x778bb0,
-    "narrator": 0x8f7c69,
-    "bubble buddy": 0x788b94,
-    "bubble bass": 0xc0ae6b,
-    "perch": 0x987cb4,
-    "pearl": 0xa7b2b3,
-    "doodlebob": 0x9a94a0,
-    "mr. fish": 0x999072,
-    "dutchman": 0x11c304,
-    "king neptune": 0x82f386,
-    "man ray": 0x0b4881,
-    "dirty bubble": 0x7c522d
+    "SpongeBob": 0xc3ac30,
+    "Patrick": 0xeea68b,
+    "Squidward": 0x9abab2,
+    "Sandy": 0xc6b4ab,
+    "Mr. Krabs": 0xde280d,
+    "Plankton": 0x0f4708,
+    "Gary": 0xc18d86,
+    "Mrs. Puff": 0xcc9c64,
+    "Larry": 0xd55b06,
+    "Squilliam": 0xd4ecd7,
+    "Karen": 0x778bb0,
+    "Narrator": 0x8f7c69,
+    "Bubble Buddy": 0x788b94,
+    "Bubble Bass": 0xc0ae6b,
+    "Perch": 0x987cb4,
+    "Pearl": 0xa7b2b3,
+    "DoodleBob": 0x9a94a0,
+    "Mr. Fish": 0x999072,
+    "Dutchman": 0x11c304,
+    "King Neptune": 0x82f386,
+    "Man Ray": 0x0b4881,
+    "Dirty Bubble": 0x7c522d
 }
 
 # Characters literal type for command arguments
-characters_literal = Literal["spongebob", "patrick", "squidward", "sandy", "mr. krabs", "plankton", "gary", "mrs. puff", "larry", "squilliam", "karen", "narrator", "bubble buddy", "bubble bass", "perch", "pearl", "doodlebob", "mr. fish", "dutchman", "king neptune", "man ray", "dirty bubble"]
+characters_literal = Literal["SpongeBob", "Patrick", "Squidward", "Sandy", "Mr. Krabs", "Plankton", "Gary", "Mrs. Puff", "Larry", "Squilliam", "Karen", "Narrator", "Bubble Buddy", "Bubble Bass", "Perch", "Pearl", "DoodleBob", "Mr. Fish", "Dutchman", "King Neptune", "Man Ray", "Dirty Bubble"]
 
 # Gain settings for audio segments
 gain_ambiance = -45
@@ -122,14 +122,14 @@ gain_voice_distort = 20
 
 # Ambiance audio segments
 ambiance_time = {
-    AudioSegment.from_wav("ambiance/day.wav"): ["day", "bright", "morning", "noon", "dawn", "sunrise", "early"],
-    AudioSegment.from_wav("ambiance/night.wav"): ["night", "dark", "evening", "dusk", "sunset", "late"]
+    "Day": AudioSegment.from_wav("ambiance/day.wav"),
+    "Night": AudioSegment.from_wav("ambiance/night.wav")
 }
 ambiance_rain = AudioSegment.from_wav("ambiance/rain.wav")
-storm_keywords = ["storm", "thunder", "lightning", "downpour"]
-rain_keywords = ["rain", "drizzle", "shower", "sprinkle", "wet"]
-clear_keywords = ["clear", "dry"]
 fade_ambiance = 500
+time_literal = Literal["Day", "Night"]
+weather_literal = Literal["Stormy", "Rainy", "Clear"]
+
 
 # Music audio segments
 music_closing_theme = AudioSegment.from_wav("music/closing_theme.wav")
@@ -148,53 +148,56 @@ fade_music = 5000
 
 # Locations with their assigned music segments and embed colors
 locations = {
-    "spongebob's house": ({
+    "SpongeBob's House": ({
         music_stars_and_games: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0xd87c02, "spongebob, patrick, gary"),
-    "patrick's house": ({
+    }, 0xd87c02, "SpongeBob, Patrick, Gary"),
+    "Patrick's House": ({
         music_gator: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x561e1f, "spongebob, patrick"),
-    "squidward's house": ({
+    }, 0x561e1f, "SpongeBob, Patrick"),
+    "Squidward's House": ({
         music_comic_walk: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x193f51, "spongebob, patrick, squidward"),
-    "sandy's treedome": ({
+    }, 0x193f51, "SpongeBob, Patrick, Squidward"),
+    "Sandy's Treedome": ({
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x2b6f00, "spongebob, patrick, sandy"),
-    "krusty krab": ({
+    }, 0x2b6f00, "SpongeBob, Patrick, Sandy"),
+    "Krusty Krab": ({
         music_tip_top_polka: 5,
         music_rake_hornpipe: 5,
         music_drunken_sailor: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x62390f, "spongebob, patrick, squidward, mr. krabs, plankton"),
-    "chum bucket": ({
+    }, 0x62390f, "SpongeBob, Patrick, Squidward, Mr. Krabs, Plankton"),
+    "Chum Bucket": ({
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0x2a3644, "plankton, karen"),
-    "boating school": ({
+    }, 0x2a3644, "Plankton, Karen"),
+    "Boating School": ({
         music_hello_sailor_b: 5,
         music_seaweed: 1,
         music_closing_theme: 1
-    }, 0xcab307, "spongebob, patrick, mrs. puff"),
-    "news studio": ({
+    }, 0xcab307, "SpongeBob, Patrick, Mrs. Puff"),
+    "News Studio": ({
         music_just_breaking_softer: 1
-    }, 0x316ec3, "perch, mr. fish"),
-    "rock bottom": ({
+    }, 0x316ec3, "Perch, Mr. Fish"),
+    "Rock Bottom": ({
         music_rock_bottom: 1
-    }, 0x101027, "spongebob, patrick, squidward"),
-    "bikini bottom": ({
+    }, 0x101027, "SpongeBob, Patrick, Squidward"),
+    "Bikini Bottom": ({
         music_closing_theme: 5,
         music_grass_skirt_chase: 1,
         music_gator: 1
-    }, 0xddba8b, "spongebob, patrick, squidward, mr. krabs, plankton, squilliam")
+    }, 0xddba8b, "SpongeBob, Patrick, Squidward, Mr. Krabs, Plankton, Squilliam")
 }
+
+# Locations literal type for command arguments
+locations_literal = Literal["SpongeBob's House", "Patrick's House", "Squidward's House", "Sandy's Treedome", "Krusty Krab", "Chum Bucket", "Boating School", "News Studio", "Rock Bottom", "Bikini Bottom"]
 
 # SFX audio segments
 sfx_random = {
@@ -223,7 +226,8 @@ sfx_random = {
     AudioSegment.from_wav("sfx/phone_call.wav"): 1,
     AudioSegment.from_wav("sfx/explosion.wav"): 1,
     AudioSegment.from_wav("sfx/anchor.wav"): 1,
-    AudioSegment.from_wav("sfx/train.wav"): 1
+    AudioSegment.from_wav("sfx/train.wav"): 1,
+    AudioSegment.from_wav("sfx/ignite.wav"): 1
 }
 sfx_triggered = {
     "bomb": ([AudioSegment.from_wav("sfx/bomb_fuse.wav").apply_gain(-20) + AudioSegment.from_wav("sfx/bomb_explosion.wav")], ["boom", "bomb", "explosion", "explode", "exploding", "fire in the hole", "blow", "blew", "blast", "firework", "dynamite", "grenade", "detonate", "detonating"]),
@@ -232,9 +236,13 @@ sfx_triggered = {
     "ball": ([AudioSegment.from_wav("sfx/ball.wav")], ["ball", "bounce", "bouncing", "bouncy", "foul", "soccer", "goal", "catch", "throw", "toss", "kick"]),
     "burp": ([AudioSegment.from_wav("sfx/burp.wav")], ["krabby patty", "krabby patties", "food", "burger", "hungry", "hungrier", "ice cream", "pizza", "pie", "fries", "fry", "consume", "consuming", "consumption", "cake", "shake", "sushi", "ketchup", "mustard", "mayo", "starve", "starving", "snack", "burp", "sandwich"])
 }
-sfx_transition = AudioSegment.from_wav("sfx/transition.wav")
-sfx_transition = sfx_transition.apply_gain(gain_sfx - sfx_transition.dBFS)
 sfx_lightning = AudioSegment.from_wav("sfx/lightning.wav")
+
+# Transition audio segments
+transition_episode = AudioSegment.from_wav("transition/episode.wav")
+transition_episode = transition_episode.apply_gain(gain_sfx - transition_episode.dBFS)
+transition_news = AudioSegment.from_wav("transition/news.wav")
+transition_news = transition_news.apply_gain(gain_sfx - transition_news.dBFS)
 
 # Voice audio segments
 voice_gary = [AudioSegment.from_wav(f"voice/gary_{i}.wav") for i in range(1, 7)]
@@ -243,22 +251,29 @@ voice_failed = AudioSegment.from_wav("voice/failed.wav")
 
 # Silence audio segments
 silence_line = AudioSegment.silent(200)
-silence_transition = AudioSegment.silent(600)
-silence_music = AudioSegment.silent(3000)
+silence_phone = AudioSegment.silent(500)
+silence_episode_intro = AudioSegment.silent(500)
+silence_news_intro = AudioSegment.silent(2000)
+silence_episode_music = AudioSegment.silent(3000)
+silence_news_music = AudioSegment.silent(7500)
 
 # Generation state
 generating = False
 
 
 @command_tree.command(description="Generate an episode.")
-@describe(topic="Topic of episode.")
+@describe(topic="Topic of episode.", location="Location of episode.", weather="Weather of episode.", time="Time of episode.", chaos="Whether to simulate chaos hour or not.")
 @allowed_installs(True, False)
 @allowed_contexts(True, False, True)
-async def episode(interaction: Interaction, topic: Range[str, char_limit_min, char_limit_max]):
+async def episode(interaction: Interaction, topic: Range[str, char_limit_min, char_limit_max], location: locations_literal = None, weather: weather_literal = None, time: time_literal = None, chaos: bool = False):
     """
     Generate an audio episode about a topic.
     :param interaction: Interaction created by the command
     :param topic: Topic of the episode
+    :param location: Location of the episode
+    :param weather: Weather of the episode
+    :param time: Time of the episode
+    :param chaos: Whether to simulate chaos hour or not
     :return: None
     """
 
@@ -283,45 +298,38 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
 
         # Log the interaction
         if logging_channel:
-            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/episode topic:{escape_markdown(topic)}", color=embed_color))
+            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/episode topic:{escape_markdown(topic, as_needed=True)} location:{location} weather:{weather} time:{time} chaos:{chaos}", color=embed_color))
 
-        # Lowercase version of topic for processing
-        topic_lower = topic.casefold().replace("’", "'")
+        # Get random location if none provided
+        if location is None:
+            location = choice([key for key in locations.keys() if key != "News Studio"])
 
-        # Get location from topic or choose a random one
-        location = choice(list(locations.keys()))
-        for key in locations.keys():
-            if key in topic_lower:
-                location = key
-                break
+        # Get random time if none provided
+        if time is None:
+            ambiance = choice(list(ambiance_time.values()))
+        else:
+            ambiance = ambiance_time[time]
 
-        # Get ambiance from topic or choose a random one
-        ambiance = choice(list(ambiance_time.keys()))
-        for key in ambiance_time.keys():
-            if any(word in topic_lower for word in ambiance_time[key]):
-                ambiance = key
-                break
-
-        # Determine rain intensity from topic or randomly
-        if any(word in topic_lower for word in storm_keywords):
+        # Get rain intensity
+        if weather == "Stormy":
             rain_intensity = randint(1, 5)
-            weather = "stormy"
-        elif any(word in topic_lower for word in rain_keywords):
+        elif weather == "Rainy":
             rain_intensity = randint(-5, 0)
-            weather = "rainy"
-        elif any(word in topic_lower for word in clear_keywords):
+        elif weather == "Clear":
             rain_intensity = None
-            weather = "clear"
         elif randrange(5) == 0:
             rain_intensity = randint(-5, 5)
-            weather = "rainy" if rain_intensity <= 0 else "stormy"
+            weather = "Rainy" if rain_intensity <= 0 else "Stormy"
         else:
             rain_intensity = None
-            weather = "clear"
+            weather = "Clear"
 
         # Generate the script
-        prompt = f"Write a fucking chaotic, profanity-filled, and morally incorrect script for a spongebob episode about a topic that takes place on a {weather} {ambiance_time[ambiance][0]} in {location} and features {locations[location][2]}, and any characters mentioned in the topic. Only respond with a two-word, spongebob-style title using the format: title: <title> followed by ten lines of brief character dialogue using the format: <character>: <dialogue>. The topic is: \"{topic}\"."
-        script = await write(prompt)
+        if location == "News Studio":
+            script_type = "Bikini Bottom news report"
+        else:
+            script_type = "SpongeBob episode"
+        script = await write(f"Write a fucking chaotic, profanity-filled, and morally incorrect script for a {script_type} about a topic that takes place on a {weather} {time} in {location} and features {locations[location][2]}, and any characters mentioned in the topic. Only respond with a two-word, SpongeBob-style title using the format: title: <title> followed by ten lines of brief character dialogue using the format: <character>: <dialogue>. The topic is: \"{topic}\".")
 
         # Clean the script
         lines = script.replace("\n\n", "\n").replace(":\n", ": ").strip().split("\n")
@@ -339,7 +347,7 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
         total_lines = len(lines)
 
         # Create the embed for the output
-        embed_output = Embed(title=escape_markdown(title_formatted), color=locations[location][1])
+        embed_output = Embed(title=escape_markdown(title_formatted, as_needed=True), color=locations[location][1])
 
         # Variables used for generation data
         sfx_positions = {key: [] for key in sfx_triggered.keys()}
@@ -366,7 +374,7 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
             # Get the character
             character = ""
             for key in characters.keys():
-                if key in line_parts[0].casefold():
+                if key.casefold() in line_parts[0].casefold():
                     character = key
                     break
 
@@ -376,11 +384,11 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
                 continue
 
             # Speak line using voice files for DoodleBob
-            if character == "doodlebob":
+            if character == "DoodleBob":
                 seg = choice(voice_doodlebob)
 
             # Speak line using voice files for Gary
-            elif character == "gary":
+            elif character == "Gary":
                 seg = choice(voice_gary)
 
             # Speak line for all other characters
@@ -403,27 +411,26 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
                     break
 
             # Apply gain, forcing a loud event sometimes
-            if output_line.isupper() or randrange(20) == 0:
+            if randrange(20) == 0:
                 seg = seg.apply_gain(gain_voice_distort)
                 seg = seg.apply_gain(gain_voice_loud-seg.dBFS)
-                output_line = "".join(part if fullmatch(regex_emoji, part) else part.upper() for part in split(regex_emoji, output_line))
             else:
                 seg = seg.apply_gain(gain_voice-seg.dBFS)
+
+            # Apply phone filter in News Studio for callers
+            if location == "News Studio" and character not in ["Perch", "Mr. Fish"]:
+                seg = low_pass_filter(high_pass_filter(seg, 1000), 3000)
+                combined = combined.append(silence_phone, 0)
 
             # Add the line to the combined audio segment
             combined = combined.append(seg, 0)
 
             # Add line spacing unless a cutoff event occurs
-            if output_line[-1] in "-–—" or randrange(10) == 0:
-                if fullmatch(r".*" + regex_emoji, output_line):
-                    output_line = output_line + "—"
-                else:
-                    output_line = output_line[:-1] + "—"
-            else:
+            if output_line[-1] not in "-–—":
                 combined = combined.append(silence_line, 0)
 
             # Add the line to the output script
-            embed_output.add_field(name="", value=f"{emojis[character.replace(' ', '').replace('.', '')]} ​ ​ {escape_markdown(output_line)}", inline=False)
+            embed_output.add_field(name="", value=f"{emojis[character.replace(' ', '').replace('.', '')]} ​ ​ {escape_markdown(output_line, as_needed=True)}", inline=False)
 
             # Line completed
             current_line += 1
@@ -440,49 +447,54 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
 
         # Add music to the episode based on location
         music = choices(list(locations[location][0].keys()), list(locations[location][0].values()))[0]
-        if music == music_just_breaking_softer or music == music_grass_skirt_chase:
-            music = music.apply_gain((gain_music + randint(-5, 5)) - music.dBFS)
-            music_loop = music
+        music = music.apply_gain((gain_music + randint(-5, 5)) - music.dBFS)
+        if location == "News Studio":
+            music_loop = silence_news_music.append(music, 0)
         else:
-            music = music.apply_gain((gain_music + randint(-5, 5)) - music.dBFS)
-            music_loop = silence_music.append(music.fade_in(fade_music), 0)
+            music_loop = silence_episode_music.append(music.fade_in(fade_music), 0)
         while len(music_loop) < len(combined):
             music_loop = music_loop.append(music, 0)
         combined = combined.overlay(music_loop)
 
-        # Add day or night ambiance to the episode
-        ambiance = ambiance.apply_gain((gain_ambiance + randint(-5, 5)) - ambiance.dBFS)
-        ambiance_loop = ambiance.fade_in(fade_ambiance)
-        while len(ambiance_loop) < len(combined):
-            ambiance_loop = ambiance_loop.append(ambiance, 0)
-        combined = combined.overlay(ambiance_loop)
+        # The following only happens if not in News Studio
+        if location != "News Studio":
 
-        # Add rain sounds to the episode
-        if rain_intensity is not None:
-            rain_randomized = ambiance_rain.apply_gain((gain_ambiance + rain_intensity) - ambiance_rain.dBFS)
-            rain_loop = rain_randomized.fade_in(fade_ambiance)
-            while len(rain_loop) < len(combined):
-                rain_loop = rain_loop.append(rain_randomized, 0)
-            combined = combined.overlay(rain_loop)
+            # Add day or night ambiance to the episode
+            ambiance = ambiance.apply_gain((gain_ambiance + randint(-5, 5)) - ambiance.dBFS)
+            ambiance_loop = ambiance.fade_in(fade_ambiance)
+            while len(ambiance_loop) < len(combined):
+                ambiance_loop = ambiance_loop.append(ambiance, 0)
+            combined = combined.overlay(ambiance_loop)
 
-            # Add lightning if rain is intense
-            if rain_intensity > 0:
-                for i in range(randint(1, ceil(min(total_lines, 25) / (10 - rain_intensity)))):
-                    combined = combined.overlay(sfx_lightning.apply_gain((gain_sfx + randint(-10 + rain_intensity, 0)) - sfx_lightning.dBFS), randrange(len(combined)))
+            # Add rain sounds to the episode
+            if rain_intensity is not None:
+                rain_randomized = ambiance_rain.apply_gain((gain_ambiance + rain_intensity) - ambiance_rain.dBFS)
+                rain_loop = rain_randomized.fade_in(fade_ambiance)
+                while len(rain_loop) < len(combined):
+                    rain_loop = rain_loop.append(rain_randomized, 0)
+                combined = combined.overlay(rain_loop)
 
-        # Add word-activated SFX to the episode
-        for sfx in sfx_triggered.keys():
-            for position in sfx_positions[sfx]:
-                if randrange(5) > 0:
-                    variant = choice(sfx_triggered[sfx][0])
-                    combined = combined.overlay(variant.apply_gain((gain_sfx + randint(-10, 0)) - variant.dBFS), position)
+                # Add lightning if rain is intense
+                if rain_intensity > 0:
+                    for i in range(ceil(len(combined) / 1000) if chaos else randint(1, ceil(min(total_lines, 25) / (10 - rain_intensity)))):
+                        combined = combined.overlay(sfx_lightning.apply_gain((gain_sfx + randint(-10 + rain_intensity, 0)) - sfx_lightning.dBFS), randrange(len(combined)))
+
+            # Add word-activated SFX to the episode
+            for sfx in sfx_triggered.keys():
+                for position in sfx_positions[sfx]:
+                    if randrange(5) > 0:
+                        variant = choice(sfx_triggered[sfx][0])
+                        combined = combined.overlay(variant.apply_gain((gain_sfx + randint(-10, 0)) - variant.dBFS), position)
 
         # Add random SFX to the episode
-        for sfx in choices(list(sfx_random.keys()), list(sfx_random.values()), k=randint(1, ceil(min(total_lines, 25) / 5))):
+        for sfx in choices(list(sfx_random.keys()), list(sfx_random.values()), k=(ceil(len(combined) / 1000) if chaos else randint(1, ceil(min(total_lines, 25) / 5)))):
             combined = combined.overlay(sfx.apply_gain((gain_sfx + randint(-5, 5)) - sfx.dBFS), randrange(len(combined)))
 
         # Add the transition SFX to the beginning of the episode and fade out the end
-        combined = silence_transition.append(combined, 0).overlay(sfx_transition).fade_out(len(silence_line))
+        if location == "News Studio":
+            combined = silence_news_intro.append(combined, 0).overlay(transition_news).fade_out(len(silence_line))
+        else:
+            combined = silence_episode_intro.append(combined, 0).overlay(transition_episode).fade_out(len(silence_line))
 
         # Export the episode and send it
         with BytesIO() as output:
@@ -508,15 +520,17 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
 
 
 @command_tree.command(description="Make a character speak text.")
-@describe(character="Character to speak text.", text="Text to speak.")
+@describe(character="Character to speak text.", text="Text to speak.", loud="Whether to speak loud or not.", phone="Whether to speak over the phone or not.")
 @allowed_installs(True, False)
 @allowed_contexts(True, False, True)
-async def tts(interaction: Interaction, character: characters_literal, text: Range[str, char_limit_min, char_limit_max]):
+async def tts(interaction: Interaction, character: characters_literal, text: Range[str, char_limit_min, char_limit_max], loud: bool = False, phone: bool = False):
     """
     Make a character speak text using text-to-speech.
     :param interaction: Interaction created by the command
     :param character: Character voice to use for TTS
     :param text: Text to speak
+    :param loud: Whether to make the audio loud and distorted
+    :param phone: Whether to apply a phone effect to the audio
     :return: None
     """
 
@@ -541,33 +555,36 @@ async def tts(interaction: Interaction, character: characters_literal, text: Ran
 
         # Log the interaction
         if logging_channel:
-            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/tts character:{character} text:{escape_markdown(text)}", color=embed_color))
+            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/tts character:{character} text:{escape_markdown(text, as_needed=True)} loud:{loud} phone:{phone}", color=embed_color))
 
         # Speak text using voice files for DoodleBob
-        if character == "doodlebob":
+        if character == "DoodleBob":
             seg = choice(voice_doodlebob)
 
         # Speak text using voice files for Gary
-        elif character == "gary":
+        elif character == "Gary":
             seg = choice(voice_gary)
 
         # Speak line for all other characters
         else:
             seg = await speak(character, text)
 
-        # Apply gain, forcing a loud event if the text is uppercase
-        if text.isupper():
+        # Apply gain, forcing a loud event if requested
+        if loud:
             seg = seg.apply_gain(gain_voice_distort)
             seg = seg.apply_gain(gain_voice_loud-seg.dBFS)
         else:
             seg = seg.apply_gain(gain_voice-seg.dBFS)
 
+        # Apply phone effect if requested
+        if phone:
+            seg = low_pass_filter(high_pass_filter(seg, 1000), 3000)
+
         # Export and send the file
         with BytesIO() as output:
             seg.export(output, "wav")
-            character_title = character.title().replace('bob', 'Bob')
-            await interaction.edit_original_response(embed=Embed(color=characters[character], description=escape_markdown(text)).set_author(name=character_title, icon_url=emojis[character.replace(' ', '').replace('.', '')].url), attachments=[
-                File(output, character_title + ": " + text.replace("/", "\\").replace("\n", " ") + ".wav")])
+            await interaction.edit_original_response(embed=Embed(color=characters[character], description=escape_markdown(text, as_needed=True)).set_author(name=character, icon_url=emojis[character.replace(' ', '').replace('.', '')].url), attachments=[
+                File(output, character + ": " + text.replace("/", "\\").replace("\n", " ") + ".wav")])
 
     # Generation failed
     except:
@@ -616,16 +633,16 @@ async def chat(interaction: Interaction, character: characters_literal, message:
 
         # Log the interaction
         if logging_channel:
-            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/chat character:{character} message:{escape_markdown(message)}", color=embed_color))
+            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/chat character:{character} message:{escape_markdown(message, as_needed=True)}", color=embed_color))
 
         # Generate the chat response
-        response = await write(f"Write a response to a discord message as {character} from spongebob. Only respond with {character}'s brief response using the format: {character}: <response>. The message from \"{interaction.user.display_name}\" says: \"{message}\".")
+        response = await write(f"Write a response to a discord message as {character} from SpongeBob. Only respond with {character}'s brief response using the format: {character}: <response>. The message from \"{interaction.user.display_name}\" says: \"{message}\".")
 
         # Clean the response text
-        output = escape_markdown(sub(regex_actions, "", response.split(":", 1)[1].strip())[:char_limit_max].strip())
+        output = escape_markdown(sub(regex_actions, "", response.split(":", 1)[1].strip())[:char_limit_max].strip(), as_needed=True)
 
         # Send the response
-        await interaction.edit_original_response(embed=Embed(description=output, color=characters[character]).set_footer(text=message, icon_url=interaction.user.display_avatar.url).set_author(name=character.title().replace("bob", "Bob"), icon_url=emojis[character.replace(' ', '').replace('.', '')].url))
+        await interaction.edit_original_response(embed=Embed(description=output, color=characters[character]).set_footer(text=message, icon_url=interaction.user.display_avatar.url).set_author(name=character, icon_url=emojis[character.replace(' ', '').replace('.', '')].url))
 
     # Generation failed
     except:
