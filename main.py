@@ -17,6 +17,7 @@ from discord import Status, Embed, Interaction, Color, Game, Intents, Client, Fi
 from discord.utils import escape_markdown
 from discord.app_commands import CommandTree, Range, describe, allowed_installs, allowed_contexts
 from pydub import AudioSegment
+from asyncio import TimeoutError as AsyncTimeoutError
 
 # Load .env
 load_dotenv()
@@ -72,6 +73,7 @@ embed_episode_end = Embed(title="Generating...", description="Mixing audio...", 
 embed_tts = Embed(title="Generating...", description="Speaking text...", color=embed_color)
 embed_chat = Embed(title="Generating...", description="Writing response...", color=embed_color)
 embed_failed = Embed(title="Failed.", description="An error occurred.", color=embed_color)
+embed_fakeyou_down = Embed(title="Failed.", description="Fakeyou is down.", color=embed_color)
 embed_in_use = Embed(title="Busy.", description="Currently in use.", color=embed_color)
 
 # Regex patterns for script modification
@@ -388,8 +390,10 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
                 try:
                     seg = await speak(character, output_line)
 
-                # Failed sound effect on failure
-                except:
+                except AsyncTimeoutError:
+                    raise
+
+                except Exception:
                     seg = voice_failed
 
             # Check if any of the word-activated SFX should happen
@@ -486,13 +490,17 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
             await interaction.edit_original_response(embed=embed_output, attachments=[
                 File(output, title_formatted.replace("/", "\\").replace("\n", " ") + ".mp3")])
 
-    # Generation failed
-    except:
+    except AsyncTimeoutError:
+        with BytesIO() as output:
+            voice_failed.export(output, "wav")
+            await interaction.edit_original_response(embed=embed_fakeyou_down, attachments=[File(output, "Failed.wav")])
+
+    except Exception:
         with BytesIO() as output:
             voice_failed.export(output, "wav")
             await interaction.edit_original_response(embed=embed_failed, attachments=[File(output, "Failed.wav")])
 
-    # Unblock generation
+    # Unblock generation (항상 실행)
     finally:
         if not allow_parallel:
             generating = False
