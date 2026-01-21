@@ -506,12 +506,28 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
             voice_failed.export(output, "wav")
             await interaction.edit_original_response(embed=embed_fakeyou_down, attachments=[File(output, "Failed.wav")])
 
-    except Exception:
+    except Exception as e:
         with BytesIO() as output:
             voice_failed.export(output, "wav")
             await interaction.edit_original_response(embed=embed_failed, attachments=[File(output, "Failed.wav")])
+        if logging_channel:
+            log_embed = Embed(
+                title="⚠️ /episode Generation Error",
+                description=f"**Error:** {utils.escape_markdown(str(e))}",
+                color=embed_color
+            )
+            context_info = (
+                f"**Topic:** {utils.escape_markdown(str(topic))}\n"
+                f"**Location:** {location}\n"
+                f"**Weather:** {weather}\n"
+                f"**Time:** {time}\n"
+                f"**Chaos:** {chaos}"
+            )
+            log_embed.add_field(name="Input Parameters", value=context_info[:1024], inline=False)
 
-    # Unblock generation (항상 실행)
+            await logging_channel.send(embed=log_embed)
+
+    # Unblock generation
     finally:
         if not allow_parallel:
             generating = False
@@ -586,10 +602,30 @@ async def tts(interaction: Interaction, character: literal_characters, text: Ran
                 File(output, character + ": " + text.replace("/", "\\").replace("\n", " ") + ".wav")])
 
     # Generation failed
-    except:
+    except Exception as e:
         with BytesIO() as output:
             voice_failed.export(output, "wav")
             await interaction.edit_original_response(embed=embed_failed, attachments=[File(output, "Failed.wav")])
+        if logging_channel:
+            log_embed = Embed(
+                title="⚠️ /tts Generation Error", 
+                description=f"**Error:** {escape_markdown(str(e), as_needed=True)}",
+                color=embed_color
+            )
+
+            safe_text = escape_markdown(str(text), as_needed=True)
+            if len(safe_text) > 500:
+                safe_text = safe_text[:500] + "... (truncated)"
+            
+            context_info = (
+                f"**Character:** {character}\n"
+                f"**Loud:** {loud}\n"
+                f"**Phone:** {phone}\n"
+                f"**Text:** {safe_text}"
+            )
+
+            log_embed.add_field(name="Input Parameters", value=context_info, inline=False)
+            await logging_channel.send(embed=log_embed)
 
     # Unblock generation
     finally:
@@ -644,10 +680,27 @@ async def chat(interaction: Interaction, character: literal_characters, message:
         await interaction.edit_original_response(embed=Embed(description=output, color=characters[character]).set_footer(text=message, icon_url=interaction.user.display_avatar.url).set_author(name=character, icon_url=emojis[character.replace(' ', '').replace('.', '')].url))
 
     # Generation failed
-    except:
-        with BytesIO() as output:
-            voice_failed.export(output, "wav")
-            await interaction.edit_original_response(embed=embed_failed, attachments=[File(output, "Failed.wav")])
+    except Exception as e:
+        await interaction.edit_original_response(embed=embed_failed)
+
+        if logging_channel:
+            log_embed = Embed(
+                title="⚠️ /chat Error", 
+                description=f"**Error:** {escape_markdown(str(e), as_needed=True)}", # e -> str(e) 변환
+                color=embed_color
+            )
+
+            safe_message = escape_markdown(str(message), as_needed=True)
+            if len(safe_message) > 900:
+                safe_message = safe_message[:900] + "... (truncated)"
+            
+            context_info = (
+                f"**Character:** {character}\n"
+                f"**Message:** {safe_message}"
+            )
+            
+            log_embed.add_field(name="Input Parameters", value=context_info, inline=False)
+            await logging_channel.send(embed=log_embed)
 
     # Unblock generation
     finally:
