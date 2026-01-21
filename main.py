@@ -297,7 +297,29 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
 
         # Log the interaction
         if logging_channel:
-            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/episode topic:{escape_markdown(topic, as_needed=True)} location:{location} weather:{weather} time:{time} chaos:{chaos}", color=embed_color))
+            log_embed = Embed(
+                title="📜 /episode Command Log",
+                description=f"**User ID:** `{interaction.user.id}`",
+                color=embed_color,
+                timestamp=interaction.created_at
+            )
+
+            log_embed.set_author(
+                name=f"{interaction.user}", 
+                icon_url=interaction.user.display_avatar.url
+            )
+
+            safe_topic = escape_markdown(str(topic), as_needed=True)
+            if len(safe_topic) > 1000:
+                safe_topic = safe_topic[:1000] + "..."
+            
+            log_embed.add_field(name="Topic", value=safe_topic, inline=False)
+            log_embed.add_field(name="Location", value=str(location), inline=True)
+            log_embed.add_field(name="Weather", value=str(weather), inline=True)
+            log_embed.add_field(name="Time", value=str(time), inline=True)
+            log_embed.add_field(name="Chaos", value=str(chaos), inline=True)
+
+            await logging_channel.send(embed=log_embed)
 
         # Get random location if none provided
         if location is None:
@@ -576,7 +598,31 @@ async def tts(interaction: Interaction, character: literal_characters, text: Ran
 
         # Log the interaction
         if logging_channel:
-            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/tts character:{character} text:{escape_markdown(text, as_needed=True)} loud:{loud} phone:{phone}", color=embed_color))
+            log_embed = Embed(
+                title="🎤 /tts Command Log", 
+                description=f"**User ID:** `{interaction.user.id}`",
+                color=embed_color,
+                timestamp=interaction.created_at
+            )
+
+            log_embed.set_author(
+                name=f"{interaction.user}", 
+                icon_url=interaction.user.display_avatar.url
+            )
+
+            settings_info = (
+                f"**Character:** `{character}`\n"
+                f"**Loud:** `{loud}`\n"
+                f"**Phone:** `{phone}`"
+            )
+            log_embed.add_field(name="Settings", value=settings_info, inline=False)
+
+            safe_text = escape_markdown(str(text), as_needed=True)
+            if len(safe_text) > 1000:
+                safe_text = safe_text[:1000] + "... (truncated)"
+            log_embed.add_field(name="Text", value=safe_text, inline=False)
+
+            await logging_channel.send(embed=log_embed)
 
         # Speak text using voice files for DoodleBob
         if character == "DoodleBob":
@@ -674,7 +720,26 @@ async def chat(interaction: Interaction, character: literal_characters, message:
 
         # Log the interaction
         if logging_channel:
-            await logging_channel.send(embed=Embed(title=interaction.user.id, description=f"/chat character:{character} message:{escape_markdown(message, as_needed=True)}", color=embed_color))
+            log_embed = Embed(
+                title="💬 /chat Command Log", 
+                description=f"**User ID:** `{interaction.user.id}`",
+                color=embed_color,
+                timestamp=interaction.created_at
+            )
+
+            log_embed.set_author(
+                name=f"{interaction.user}", 
+                icon_url=interaction.user.display_avatar.url
+            )
+
+            log_embed.add_field(name="Character", value=f"`{character}`", inline=False)
+
+            safe_message = escape_markdown(str(message), as_needed=True)
+            if len(safe_message) > 1000:
+                safe_message = safe_message[:1000] + "... (truncated)"
+            log_embed.add_field(name="Message", value=safe_message, inline=False)
+
+            await logging_channel.send(embed=log_embed)
 
         # Generate the chat response
         response = await write(f"Write a response to a discord message as {character} from SpongeBob. Only respond with {character}'s brief response using the format: {character}: <response>. The message from \"{interaction.user.display_name}\" says: \"{message}\".")
