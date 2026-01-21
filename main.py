@@ -352,6 +352,8 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
         sfx_positions = {key: [] for key in sfx_triggered.keys()}
         combined = AudioSegment.empty()
 
+        total_failed = 0
+
         # Process each line
         for line in lines:
 
@@ -402,6 +404,10 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
 
                 except Exception:
                     seg = voice_failed
+                    total_failed += 1
+
+                    if total_failed >= 10:
+                        raise Exception("Too many TTS failures.")
 
             # Check if any of the word-activated SFX should happen
             for sfx in sfx_triggered.keys():
