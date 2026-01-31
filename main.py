@@ -255,6 +255,7 @@ literal_characters = Literal["SpongeBob", "Patrick", "Squidward", "Sandy", "Mr. 
 literal_locations = Literal["SpongeBob's House", "Patrick's House", "Squidward's House", "Sandy's Treedome", "Krusty Krab", "Chum Bucket", "Boating School", "News Studio", "Rock Bottom", "Bikini Bottom"]
 literal_time = Literal["Day", "Night"]
 literal_weather = Literal["Stormy", "Rainy", "Clear"]
+literal_volume = Literal["Raw", "Normal", "Loud"]
 
 # Generation state
 generating = False
@@ -572,18 +573,18 @@ async def episode(interaction: Interaction, topic: Range[str, char_limit_min, ch
 
 
 @command_tree.command(description="Make a character speak text.")
-@describe(character="Who should speak.", text="What should be said.", loud="Whether to speak loud and distorted.", phone="Whether to speak over the phone.", limit="Whether to apply a text-based audio length limit.")
+@describe(character="Who should speak.", text="What should be said.", volume="How loud to speak.", phone="Whether to speak over the phone.", limit="Whether to limit speaking time.")
 @allowed_installs(True, False)
 @allowed_contexts(True, False, True)
-async def tts(interaction: Interaction, character: literal_characters, text: Range[str, char_limit_min, char_limit_max], loud: bool = False, phone: bool = False, limit: bool = False):
+async def tts(interaction: Interaction, character: literal_characters, text: Range[str, char_limit_min, char_limit_max], volume: literal_volume = "Raw", phone: bool = False, limit: bool = False):
     """
     Make a character speak text using text-to-speech.
     :param interaction: Interaction created by the command
     :param character: Who should speak
     :param text: What should be said
-    :param loud: Whether to speak loud and distorted
+    :param volume: How loud to speak
     :param phone: Whether to speak over the phone
-    :param limit: Whether to apply a text-based audio length limit
+    :param limit: Whether to limit speaking time
     :return: None
     """
 
@@ -622,8 +623,9 @@ async def tts(interaction: Interaction, character: literal_characters, text: Ran
 
             settings_info = (
                 f"**Character:** `{character}`\n"
-                f"**Loud:** `{loud}`\n"
-                f"**Phone:** `{phone}`"
+                f"**Volume:** `{volume}`\n"
+                f"**Phone:** `{phone}`\n"
+                f"**Limit:** `{limit}`"
             )
             log_embed.add_field(name="Settings", value=settings_info, inline=False)
 
@@ -654,11 +656,11 @@ async def tts(interaction: Interaction, character: literal_characters, text: Ran
         if phone:
             seg = high_pass_filter(seg, 3000)
 
-        # Apply gain, forcing a loud event if requested
-        if loud:
+        # Apply gain
+        if volume == "Loud":
             seg = seg.apply_gain(gain_voice_distort)
             seg = seg.apply_gain(gain_voice_loud-seg.dBFS)
-        else:
+        elif volume == "Normal":
             seg = seg.apply_gain(gain_voice-seg.dBFS)
 
         # Export and send the file
