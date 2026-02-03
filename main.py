@@ -630,8 +630,7 @@ async def tts(interaction: Interaction, character: literal_characters, text: Ran
 
             settings_info = (
                 f"**Character:** `{character}`\n"
-                f"**Limit:** `{limit}`\n"
-                f"**Filter:** `{filter}`\n"
+                f"**Device:** `{device}`\n"
                 f"**Loud:** `{loud}`"
             )
             log_embed.add_field(name="Settings", value=settings_info, inline=False)
